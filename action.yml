@@ -1,0 +1,319 @@
+name: "Gather Repository Stats"
+description: "Gather GitHub repository statistics and optionally run migration audit"
+author: "scottluskcis"
+
+branding:
+  icon: "bar-chart-2"
+  color: "blue"
+
+inputs:
+  type:
+    description: "Type of stats gathering: 'repository' or 'organization'"
+    required: false
+    default: "repository"
+  github-token:
+    description: "GitHub token for authentication (e.g., github.token)"
+    required: true
+  ghec-token:
+    description: "GitHub Enterprise Cloud token for authentication (optional, used if not in github.com to download dependencies from GHEC)"
+    required: false
+    default: ""
+  access-token:
+    description: "Personal access token with repo access for gathering stats"
+    default: ""
+    required: false
+  github-app-id:
+    description: "GitHub App ID for authentication (optional, requires private key)"
+    default: ""
+    required: false
+  github-app-private-key:
+    description: "GitHub App private key for authentication (optional, requires app ID)"
+    default: ""
+    required: false
+  organization:
+    description: "Organization or owner name"
+    required: true
+  repository:
+    description: "Repository name if type is 'repository'"
+    default: ""
+    required: false
+  output-dir:
+    description: "Directory where output files will be stored"
+    required: false
+    default: "output"
+  run-migration-audit:
+    description: "Whether to run migration audit (true/false)"
+    required: false
+    default: "false"
+  node-version:
+    description: "Node.js version to use"
+    required: false
+    default: "25"
+  base-url:
+    description: "GitHub API base URL"
+    required: false
+    default: "https://api.github.com"
+  retention-days:
+    description: "Number of days to retain artifacts"
+    required: false
+    default: "7"
+
+outputs:
+  output-dir:
+    description: "Directory where output files are stored"
+    value: ${{ steps.setup-paths.outputs.output_dir }}
+  organization:
+    description: "Organization name"
+    value: ${{ inputs.organization }}
+  repository:
+    description: "Repository name"
+    value: ${{ inputs.repository }}
+  stats-file:
+    description: "Path to the stats markdown file"
+    value: ${{ steps.setup-paths.outputs.output_dir }}/stats.md
+  audit-file:
+    description: "Path to the audit markdown file"
+    value: ${{ steps.setup-paths.outputs.output_dir }}/audit.md
+  migration-audit:
+    description: "Whether migration audit was run (true/false)"
+    value: ${{ inputs.run-migration-audit }}
+  artifact-id:
+    description: "ID of the uploaded artifact containing the stats"
+    value: ${{ steps.upload-artifact.outputs.artifact-id }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Verify Repository Checkout
+      shell: bash
+      run: |
+        if [ ! -d "$GITHUB_WORKSPACE" ] || [ -z "$(ls -A $GITHUB_WORKSPACE 2>/dev/null)" ]; then
+          echo "::error::Repository must be checked out before running this action. Add 'uses: actions/checkout@v4' before this step."
+          exit 1
+        fi
+        echo "✓ Repository checkout verified"
+
+    - name: Resolve GH_HOST
+      id: resolve-host
+      shell: bash
+      run: |
+        BASE_URL="${{ inputs.base-url }}"
+        # Strip protocol
+        HOST="${BASE_URL#https://}"
+        HOST="${HOST#http://}"
+        # Remove any trailing path
+        HOST="${HOST%%/*}"
+        # For public GitHub, api.github.com -> github.com
+        if [[ "$HOST" == api.* ]]; then
+          HOST="${HOST#api.}"
+        fi
+        echo "GH_HOST=${HOST}" >> $GITHUB_ENV
+        echo "gh_host=${HOST}" >> $GITHUB_OUTPUT
+        echo "✓ Resolved GH_HOST: ${HOST}"
+
+    - name: Setup Paths
+      id: setup-paths
+      shell: bash
+      run: |
+        OUTPUT_DIR_INPUT="${{ inputs.output-dir }}"
+        # If the input is already an absolute path, use it as-is
+        if [[ "$OUTPUT_DIR_INPUT" = /* ]]; then
+          OUTPUT_DIR="$OUTPUT_DIR_INPUT"
+        else
+          OUTPUT_DIR="${GITHUB_WORKSPACE}/${OUTPUT_DIR_INPUT}"
+        fi
+        echo "output_dir=${OUTPUT_DIR}" >> $GITHUB_OUTPUT
+
+        REPOSITORY="${{ inputs.repository }}"
+        if [[ -n "$REPOSITORY" ]]; then
+          FILE="${GITHUB_WORKSPACE}/repo-info.txt"
+          echo "${{ inputs.organization }}/${REPOSITORY}" > "$FILE"
+          echo "file=${FILE}" >> $GITHUB_OUTPUT
+        else
+          echo "file=" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Validate Repository Exists
+      if: ${{ inputs.type == 'repository' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.access-token }}
+        GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
+      run: |
+        echo "Validating repository: ${{ inputs.organization }}/${{ inputs.repository }}"
+        if ! gh repo view ${{ inputs.organization }}/${{ inputs.repository }} --json name > /dev/null 2>&1; then
+          echo "::error::Repository not found: ${{ inputs.organization }}/${{ inputs.repository }}. Please verify the organization and repository names are correct and that you have access to this repository."
+          exit 1
+        fi
+        echo "✓ Repository exists and is accessible"
+
+    - name: Validate Organization Exists
+      if: ${{ inputs.type == 'organization' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.access-token }}
+        GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
+      run: |
+        echo "Validating organization: ${{ inputs.organization }}"
+        if ! gh api /orgs/${{ inputs.organization }} > /dev/null 2>&1; then
+          echo "::error::Organization not found: ${{ inputs.organization }}. Please verify the organization name is correct and that you have access to this organization."
+          exit 1
+        fi
+        echo "✓ Organization exists and is accessible"
+
+    - name: Setup Node.js
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Dependencies
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.ghec-token || inputs.github-token }}
+        GH_HOST: github.com
+      run: |
+        echo "Installing GitHub CLI extension gh-repo-stats-plus"
+        gh extension install mona-actions/gh-repo-stats-plus
+        gh repo-stats-plus --version
+
+        echo "Installing GitHub CLI extension gh-migration-audit"
+        gh extension install timrogers/gh-migration-audit
+        gh migration-audit --version
+
+        echo "✓ Dependencies installed successfully"
+
+    - name: Get App Installation ID
+      id: app-install
+      if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
+      with:
+        app-id: ${{ inputs.github-app-id }}
+        private-key: ${{ inputs.github-app-private-key }}
+        owner: ${{ inputs.organization }}
+
+    - name: Gather Repo Stats
+      shell: bash
+      run: |
+        gh repo-stats-plus repo-stats \
+          --org-name "${{ inputs.organization }}" \
+          --access-token "${{ inputs.access-token }}" \
+          --app-id "${{ inputs.github-app-id }}" \
+          --private-key "${{ inputs.github-app-private-key }}" \
+          --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
+          --base-url "${{ inputs.base-url }}" \
+          --repo-list "${{ steps.setup-paths.outputs.file }}" \
+          --output-dir "${{ steps.setup-paths.outputs.output_dir }}"
+         
+        echo "✓ Repository statistics gathered successfully"
+
+    - name: Run Migration Audit for Repository
+      if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'repository' }}
+      shell: bash
+      run: |
+        gh migration-audit audit-repo \
+          --access-token ${{ inputs.access-token }} \
+          --app-id "${{ inputs.github-app-id }}" \
+          --private-key "${{ inputs.github-app-private-key }}" \
+          --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
+          --owner ${{ inputs.organization }} \
+          --repo ${{ inputs.repository }} \
+          --output-path ${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.repository }}-audit.csv \
+          --base-url ${{ inputs.base-url }} \
+          --disable-telemetry
+
+        echo "✓ Migration audit for repository completed successfully"
+
+    - name: Run Migration Audit for Organization
+      if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'organization' }}
+      shell: bash
+      run: |
+        gh migration-audit audit-all \
+          --access-token ${{ inputs.access-token }} \
+          --app-id "${{ inputs.github-app-id }}" \
+          --private-key "${{ inputs.github-app-private-key }}" \
+          --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
+          --owner ${{ inputs.organization }} \
+          --output-path ${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.repository }}-audit.csv \
+          --base-url ${{ inputs.base-url }} \
+          --disable-telemetry
+
+        echo "✓ Migration audit for organization completed successfully"
+
+    - name: Convert CSV to Markdown
+      if: ${{ success() && inputs.type == 'repository' }}
+      shell: bash
+      run: |
+        CSV_FILE=$(ls ${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.organization }}-*_repos-*.csv | head -n 1)
+
+        # Create vertical markdown table
+        MARKDOWN="## 📊 Repository Statistics\n\n"
+        MARKDOWN+="| Metric | Value |\n"
+        MARKDOWN+="|--------|-------|\n"
+
+        # Read headers and values, create vertical table
+        HEADERS=$(head -n 1 "$CSV_FILE")
+        VALUES=$(tail -n 1 "$CSV_FILE")
+
+        IFS=',' read -ra HEADER_ARRAY <<< "$HEADERS"
+        IFS=',' read -ra VALUE_ARRAY <<< "$VALUES"
+
+        for i in "${!HEADER_ARRAY[@]}"; do
+          MARKDOWN+="| ${HEADER_ARRAY[$i]} | ${VALUE_ARRAY[$i]} |\n"
+        done
+
+        # Save to file for next step
+        echo -e "$MARKDOWN" > ${{ steps.setup-paths.outputs.output_dir }}/stats.md
+
+        echo "✓ CSV converted to markdown successfully"
+
+    - name: Convert Migration Audit to Markdown
+      if: inputs.run-migration-audit == 'true' && success() && inputs.type == 'repository'
+      shell: bash
+      run: |
+        AUDIT_FILE="${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.repository }}-audit.csv"
+
+        MARKDOWN="\n\n## 🔍 Migration Audit Results\n\n"
+
+        # Read CSV and create horizontal table
+        while IFS=',' read -r col1 col2; do
+          if [ "$col1" != "" ]; then
+            # First row is headers
+            if [ ! -f /tmp/headers_written ]; then
+              MARKDOWN+="| $col1 | $col2 |\n"
+              MARKDOWN+="|-------|-------|\n"
+              touch /tmp/headers_written
+            else
+              MARKDOWN+="| $col1 | $col2 |\n"
+            fi
+          fi
+        done < "$AUDIT_FILE"
+
+        # Save to file
+        echo -e "$MARKDOWN" > ${{ steps.setup-paths.outputs.output_dir }}/audit.md
+
+        echo "✓ Migration audit CSV converted to markdown successfully"
+
+    - name: Upload Stats Artifact
+      id: upload-artifact
+      if: success()
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+      with:
+        name: repo-stats-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}
+        path: ${{ steps.setup-paths.outputs.output_dir }}/
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Create Stats Placeholder
+      if: ${{ success() && inputs.type == 'organization' }}
+      shell: bash
+      run: |
+        MARKDOWN="## 📊 Repository Statistics\n\n"
+
+        MARKDOWN+="Statistics have been collected for the organization.\n\n"
+        MARKDOWN+="Please download the artifacts to view the detailed statistics.\n\n"
+
+        MARKDOWN+="[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n"
+        MARKDOWN+="[Download Artifact](${{ steps.upload-artifact.outputs.artifact-url }})\n"
+
+        echo -e "$MARKDOWN" > ${{ steps.setup-paths.outputs.output_dir }}/stats.md
+
+        echo "✓ Stats placeholder for organization created successfully"
