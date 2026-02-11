@@ -158,7 +158,6 @@ The [examples/](examples/) directory contains complete workflow files and setups
 
 The CI workflow runs on every push to `main` and on pull requests. It performs static analysis only — no secrets or API calls required:
 
-- **actionlint** — Validates all GitHub Actions workflow files and action metadata
 - **ShellCheck** — Lints the embedded bash scripts extracted from `action.yml`
 - **yamllint** — Checks YAML syntax across all config files
 
@@ -177,7 +176,7 @@ gh-repo-stats-plus-action/
 │   ├── pull_request_template.md
 │   ├── release-drafter.yml     # Release Drafter configuration
 │   └── workflows/
-│       ├── ci.yml              # Lint: actionlint, ShellCheck, yamllint
+│       ├── ci.yml              # Lint: ShellCheck, yamllint
 │       ├── integration-test.yml # Manual end-to-end action test
 │       └── release-drafter.yml # Drafts releases on merge to main
 ├── examples/
