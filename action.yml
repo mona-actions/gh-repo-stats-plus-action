@@ -233,7 +233,7 @@ runs:
           --private-key "${{ inputs.github-app-private-key }}" \
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
           --owner ${{ inputs.organization }} \
-          --output-path ${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.repository }}-audit.csv \
+          --output-path ${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.organization }}-audit.csv \
           --base-url ${{ inputs.base-url }} \
           --disable-telemetry
 
