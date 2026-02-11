@@ -1,0 +1,148 @@
+name: Gather Stats
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GH_HOST: github.com
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  info:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Info
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "👋 Welcome! To start the stats gathering process, comment with:
+
+          \`\`\`
+          /run-stats
+          \`\`\`"
+
+  gather-stats:
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.issue.labels.*.name, 'stats') && startsWith(github.event.comment.body, '/run-stats')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Parse Issue
+        id: parser
+        uses: issue-ops/parser@cb7e2e4e5da701aad0e23e718bc4c91d442ca8ba #v5
+        with:
+          body: ${{ github.event.issue.body }}
+
+      - name: Setup Repo Info
+        id: repo-info
+        run: |
+          # Determine type based on issue labels
+          LABELS='${{ toJSON(github.event.issue.labels.*.name) }}'
+          if echo "$LABELS" | jq -e 'index("repository")' > /dev/null 2>&1; then
+            TYPE_TO_CHECK="repository"
+          elif echo "$LABELS" | jq -e 'index("organization")' > /dev/null 2>&1; then
+            TYPE_TO_CHECK="organization"
+          else
+            echo "::error::Unable to determine type from issue labels. Expected 'repository' or 'organization' label."
+            exit 1
+          fi
+
+          FULL_NAME=$(echo '${{ steps.parser.outputs.json }}' | jq -r '.name')
+          ADDITIONAL_OPTIONS=$(echo '${{ steps.parser.outputs.json }}' | jq -r '.additional_options // ""')
+
+          if [[ "$TYPE_TO_CHECK" == "repository" ]]; then
+
+            # Validate format contains exactly one '/'
+            if [[ ! "$FULL_NAME" =~ ^[^/]+/[^/]+$ ]]; then
+              echo "::error::Invalid repository format: '$FULL_NAME'. Expected format: 'organization/repository'"
+              exit 1
+            fi
+
+            # Split on '/'
+            ORGANIZATION=$(echo "$FULL_NAME" | cut -d'/' -f1)
+            REPOSITORY=$(echo "$FULL_NAME" | cut -d'/' -f2)
+
+            # Validate both parts are non-empty
+            if [[ -z "$ORGANIZATION" ]] || [[ -z "$REPOSITORY" ]]; then
+              echo "::error::Organization and repository names cannot be empty"
+              exit 1
+            fi
+
+          else
+
+            ORGANIZATION="$FULL_NAME"
+            REPOSITORY=""
+
+          fi
+
+          echo "organization=${ORGANIZATION}" >> $GITHUB_OUTPUT
+          echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "output_dir=${GITHUB_WORKSPACE}/output" >> $GITHUB_OUTPUT
+          echo "type_to_check=${TYPE_TO_CHECK}" >> $GITHUB_OUTPUT
+
+          # Check if Migration Audit is selected
+          if [[ "$ADDITIONAL_OPTIONS" == *"[x] Migration Audit"* ]]; then
+            echo "run_migration_audit=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_migration_audit=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Start Process
+        if: ${{ success() }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "🚀 Starting stats gathering process. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+
+      - name: Run Stats Gathering
+        id: run-stats
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          github-token: ${{ github.token }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          github-app-id: ${{ secrets.GITHUB_APP_ID }}
+          github-app-private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          organization: ${{ steps.repo-info.outputs.organization }}
+          repository: ${{ steps.repo-info.outputs.repository }}
+          type: ${{ steps.repo-info.outputs.type_to_check }}
+          output-dir: ${{ steps.repo-info.outputs.output_dir }}
+          run-migration-audit: ${{ steps.repo-info.outputs.run_migration_audit }}
+
+      - name: Post Results Comment
+        if: success()
+        run: |
+          # Start with repo stats
+          COMMENT=$(cat ${{ steps.run-stats.outputs.output-dir }}/stats.md)
+
+          # Add migration audit if it exists
+          if [ -f "${{ steps.run-stats.outputs.output-dir }}/audit.md" ]; then
+            COMMENT+="\n$(cat ${{ steps.run-stats.outputs.output-dir }}/audit.md)"
+          fi
+
+          # Post comment
+          echo -e "$COMMENT" | gh issue comment ${{ github.event.issue.number }} --body-file -
+
+      - name: Report Success
+        if: ${{ success() }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "✅ Process completed successfully! See the statistics above."
+
+      - name: Report Failure
+        if: ${{ failure() || cancelled() }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "❌ Stats gathering failed. Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
