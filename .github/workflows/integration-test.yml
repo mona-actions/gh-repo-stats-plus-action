@@ -1,0 +1,44 @@
+name: Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      organization:
+        description: "Organization or owner name"
+        required: true
+        default: "mona-actions"
+      repository:
+        description: "Repository name"
+        required: true
+        default: "gh-repo-stats-plus-action"
+
+jobs:
+  test-action:
+    name: Run Action Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Action
+        id: test
+        uses: ./
+        with:
+          github-token: ${{ github.token }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          organization: ${{ inputs.organization }}
+          repository: ${{ inputs.repository }}
+
+      - name: Verify Outputs
+        run: |
+          echo "Output dir: ${{ steps.test.outputs.output-dir }}"
+          echo "Organization: ${{ steps.test.outputs.organization }}"
+          echo "Repository: ${{ steps.test.outputs.repository }}"
+          echo "Stats file: ${{ steps.test.outputs.stats-file }}"
+          echo "Migration audit: ${{ steps.test.outputs.migration-audit }}"
+          echo "Artifact ID: ${{ steps.test.outputs.artifact-id }}"
+
+          if [ -f "${{ steps.test.outputs.stats-file }}" ]; then
+            echo "--- Stats Output ---"
+            cat "${{ steps.test.outputs.stats-file }}"
+          fi

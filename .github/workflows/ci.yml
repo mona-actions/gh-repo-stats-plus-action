@@ -7,44 +7,65 @@ on:
     branches: [main]
 
 jobs:
-  lint-action:
-    name: Lint Action Metadata
+  actionlint:
+    name: Lint GitHub Actions
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate action.yml
-        run: |
-          if [ ! -f action.yml ]; then
-            echo "::error::action.yml not found"
-            exit 1
-          fi
-          echo "action.yml exists and is valid YAML"
-          cat action.yml
-
-  test-action:
-    name: Test Action
-    runs-on: ubuntu-latest
-    needs: lint-action
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run Action
-        id: test
-        uses: ./
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          access-token: ${{ secrets.ACCESS_TOKEN }}
-          organization: ${{ github.repository_owner }}
-          repository: ${{ github.event.repository.name }}
+          matcher: true
 
-      - name: Verify Outputs
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract shell scripts from action.yml
+        id: extract
         run: |
-          echo "Output dir: ${{ steps.test.outputs.output-dir }}"
-          echo "Organization: ${{ steps.test.outputs.organization }}"
-          echo "Repository: ${{ steps.test.outputs.repository }}"
-          echo "Stats file: ${{ steps.test.outputs.stats-file }}"
-          echo "Migration audit: ${{ steps.test.outputs.migration-audit }}"
-          echo "Artifact ID: ${{ steps.test.outputs.artifact-id }}"
+          mkdir -p /tmp/scripts
+          # Extract run blocks from action.yml into individual scripts for linting
+          python3 -c "
+          import yaml, os
+          with open('action.yml') as f:
+              data = yaml.safe_load(f)
+          steps = data.get('runs', {}).get('steps', [])
+          for i, step in enumerate(steps):
+              run_block = step.get('run')
+              if run_block:
+                  name = step.get('name', f'step-{i}').lower().replace(' ', '-')
+                  path = f'/tmp/scripts/{i:02d}-{name}.sh'
+                  with open(path, 'w') as out:
+                      out.write('#!/usr/bin/env bash\n')
+                      out.write(run_block)
+                  print(f'Extracted: {path}')
+          "
+
+      - name: Run ShellCheck
+        run: |
+          if ls /tmp/scripts/*.sh 1>/dev/null 2>&1; then
+            echo "Running ShellCheck on extracted scripts..."
+            shellcheck --severity=warning /tmp/scripts/*.sh || true
+          else
+            echo "No shell scripts found to lint"
+          fi
+
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint YAML files
+        run: |
+          pip install yamllint
+          yamllint -d relaxed action.yml
+          yamllint -d relaxed .github/workflows/*.yml
+          yamllint -d relaxed .github/release-drafter.yml
