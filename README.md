@@ -166,8 +166,11 @@ A CI workflow runs on every push to `main` and on pull requests. It validates th
 gh-repo-stats-plus-action/
 ├── action.yml                  # Action metadata (required for Marketplace)
 ├── .github/
+│   ├── pull_request_template.md
+│   ├── release-drafter.yml     # Release Drafter configuration
 │   └── workflows/
-│       └── ci.yml              # CI workflow to lint and test the action
+│       ├── ci.yml              # CI workflow to lint and test the action
+│       └── release-drafter.yml # Drafts releases on merge to main
 ├── examples/
 │   ├── repository-stats.yml    # Simple single-repo example
 │   ├── organization-stats.yml  # Simple org-wide example
@@ -184,22 +187,30 @@ gh-repo-stats-plus-action/
 └── README.md
 ```
 
+### Releases
+
+This project uses [Release Drafter](https://github.com/release-drafter/release-drafter) for automated release management. When pull requests are merged to `main`, a draft release is automatically created or updated with generated release notes.
+
+1. **Label your PRs** to control version bumps:
+   - `major` or `breaking` → major version bump
+   - `minor`, `enhancement`, or `feature` → minor version bump
+   - `patch`, `bug`, `fix`, `chore`, `maintenance`, `dependencies` → patch version bump (default)
+2. **Review the draft release** on the [Releases page](https://github.com/mona-actions/gh-repo-stats-plus-action/releases)
+3. **Publish** when ready — check **"Publish this Action to the GitHub Marketplace"**
+4. **Update the major version tag** after publishing:
+
+```bash
+git tag -fa v1 -m "Update v1 tag"
+git push origin v1 --force
+```
+
 ### Publishing to GitHub Marketplace
 
 1. Ensure the repository is **public**
 2. The `action.yml` file must be in the **root** of the repository
-3. Create a GitHub Release with a semantic version tag (e.g., `v1.0.0`)
-4. When creating the release, check **"Publish this Action to the GitHub Marketplace"**
+3. Publish the draft release created by Release Drafter
+4. When publishing, check **"Publish this Action to the GitHub Marketplace"**
 5. Maintain a major version tag (e.g., `v1`) pointing to the latest release
-
-```bash
-git tag -a v1.0.0 -m "Initial release"
-git push origin v1.0.0
-
-# Create/update the major version tag
-git tag -fa v1 -m "Update v1 tag"
-git push origin v1 --force
-```
 
 ## Contributing
 

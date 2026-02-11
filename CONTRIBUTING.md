@@ -32,7 +32,15 @@ uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
 1. Push your branch to your fork
 2. Open a pull request against `main`
 3. Provide a clear description of the change and why it is needed
-4. Ensure the CI workflow passes
+4. **Add a label** to indicate the type of change (used by [Release Drafter](https://github.com/release-drafter/release-drafter) for versioning):
+   - `major` or `breaking` → major version bump
+   - `minor`, `enhancement`, or `feature` → minor version bump
+   - `patch`, `bug`, `fix`, `chore`, `maintenance`, `dependencies` → patch version bump (default)
+5. Ensure the CI workflow passes
+
+## Releases
+
+This project uses [Release Drafter](https://github.com/release-drafter/release-drafter) for automated release management. When PRs are merged to `main`, a draft release is created or updated automatically based on PR labels. Maintainers review and publish the draft when ready.
 
 ## Reporting Issues
 
