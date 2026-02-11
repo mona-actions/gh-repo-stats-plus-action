@@ -14,7 +14,7 @@ This example demonstrates an [IssueOps](https://github.com/issue-ops) pattern fo
 ## Files
 
 ```
-issue-ops-gather-stats/
+issue-ops/
 ├── gather-stats.yml                        # Workflow file (copy to .github/workflows/)
 ├── issue-templates/
 │   ├── 01-get-repo-stats.yml               # Issue template for single repository stats
