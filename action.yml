@@ -87,7 +87,7 @@ runs:
     - name: Verify Repository Checkout
       shell: bash
       run: |
-        if [ ! -d "$GITHUB_WORKSPACE" ] || [ -z "$(ls -A $GITHUB_WORKSPACE 2>/dev/null)" ]; then
+        if [ ! -d "$GITHUB_WORKSPACE" ] || [ -z "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
           echo "::error::Repository must be checked out before running this action. Add 'uses: actions/checkout@v4' before this step."
           exit 1
         fi
