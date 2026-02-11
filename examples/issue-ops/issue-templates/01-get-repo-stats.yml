@@ -21,6 +21,6 @@ body:
     id: options
     attributes:
       label: Additional Options
-      description: Select any additonal types of statistics you would like to gather.
+      description: Select any additional types of statistics you would like to gather.
       options:
         - label: Migration Audit
