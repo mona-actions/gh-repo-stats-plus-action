@@ -154,17 +154,6 @@ The [examples/](examples/) directory contains complete workflow files and setups
 - [**Organization Stats**](examples/organization-stats.yml) — A simple workflow that gathers stats for all repositories in an organization on a weekly schedule.
 - [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository and organization-wide stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
-## CI
-
-The CI workflow runs on every push to `main` and on pull requests. It performs static analysis only — no secrets or API calls required:
-
-- **ShellCheck** — Lints the embedded bash scripts extracted from `action.yml`
-- **yamllint** — Checks YAML syntax across all config files
-
-See [.github/workflows/ci.yml](.github/workflows/ci.yml) for details.
-
-For full end-to-end testing, use the **Integration Test** workflow which can be triggered manually via `workflow_dispatch`. It runs the action against a specified repository and verifies the outputs. See [.github/workflows/integration-test.yml](.github/workflows/integration-test.yml).
-
 ## Development
 
 ### File Structure
@@ -206,11 +195,6 @@ This project uses [Release Drafter](https://github.com/release-drafter/release-d
 2. **Review the draft release** on the [Releases page](https://github.com/mona-actions/gh-repo-stats-plus-action/releases)
 3. **Publish** when ready — check **"Publish this Action to the GitHub Marketplace"**
 4. **Update the major version tag** after publishing:
-
-```bash
-git tag -fa v1 -m "Update v1 tag"
-git push origin v1 --force
-```
 
 ## Contributing
 
