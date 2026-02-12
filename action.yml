@@ -133,7 +133,7 @@ runs:
           echo "file=" >> $GITHUB_OUTPUT
         fi
 
-    - name: Get App Installation ID
+    - name: Create GitHub App token
       id: app-install
       if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
       uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
