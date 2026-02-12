@@ -54,6 +54,4 @@ jobs:
       - name: Lint YAML files
         run: |
           pip install yamllint
-          yamllint -d relaxed action.yml
-          yamllint -d relaxed .github/workflows/*.yml
-          yamllint -d relaxed .github/release-drafter.yml
+          yamllint action.yml .github/workflows/*.yml .github/release-drafter.yml

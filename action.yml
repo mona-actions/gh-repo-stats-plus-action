@@ -203,7 +203,7 @@ runs:
           --base-url "${{ inputs.base-url }}" \
           --repo-list "${{ steps.setup-paths.outputs.file }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}"
-         
+
         echo "✓ Repository statistics gathered successfully"
 
     - name: Run Migration Audit for Repository
