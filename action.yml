@@ -141,6 +141,8 @@ runs:
         app-id: ${{ inputs.github-app-id }}
         private-key: ${{ inputs.github-app-private-key }}
         owner: ${{ inputs.organization }}
+        github-api-url: ${{ inputs.base-url }}
+        repositories: ${{ inputs.repository }}
 
     - name: Validate Repository Exists
       if: ${{ inputs.type == 'repository' }}
