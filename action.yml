@@ -133,11 +133,20 @@ runs:
           echo "file=" >> $GITHUB_OUTPUT
         fi
 
+    - name: Create GitHub App token
+      id: app-install
+      if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
+      with:
+        app-id: ${{ inputs.github-app-id }}
+        private-key: ${{ inputs.github-app-private-key }}
+        owner: ${{ inputs.organization }}
+
     - name: Validate Repository Exists
       if: ${{ inputs.type == 'repository' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.access-token }}
+        GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
       run: |
         echo "Validating repository: ${{ inputs.organization }}/${{ inputs.repository }}"
@@ -151,7 +160,7 @@ runs:
       if: ${{ inputs.type == 'organization' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.access-token }}
+        GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
       run: |
         echo "Validating organization: ${{ inputs.organization }}"
@@ -181,15 +190,6 @@ runs:
         gh migration-audit --version
 
         echo "✓ Dependencies installed successfully"
-
-    - name: Get App Installation ID
-      id: app-install
-      if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
-      with:
-        app-id: ${{ inputs.github-app-id }}
-        private-key: ${{ inputs.github-app-private-key }}
-        owner: ${{ inputs.organization }}
 
     - name: Gather Repo Stats
       shell: bash
