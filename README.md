@@ -212,14 +212,6 @@ git tag -fa v1 -m "Update v1 tag"
 git push origin v1 --force
 ```
 
-### Publishing to GitHub Marketplace
-
-1. Ensure the repository is **public**
-2. The `action.yml` file must be in the **root** of the repository
-3. Publish the draft release created by Release Drafter
-4. When publishing, check **"Publish this Action to the GitHub Marketplace"**
-5. Maintain a major version tag (e.g., `v1`) pointing to the latest release
-
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
