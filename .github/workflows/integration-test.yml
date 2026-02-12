@@ -16,6 +16,8 @@ jobs:
   test-action:
     name: Run Action Integration Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
