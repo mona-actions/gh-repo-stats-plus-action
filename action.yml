@@ -213,7 +213,7 @@ runs:
       shell: bash
       run: |
         gh migration-audit audit-repo \
-          --access-token ${{ inputs.access-token }} \
+          --access-token "${{ inputs.access-token }}" \
           --app-id "${{ inputs.github-app-id }}" \
           --private-key "${{ inputs.github-app-private-key }}" \
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
@@ -230,7 +230,7 @@ runs:
       shell: bash
       run: |
         gh migration-audit audit-all \
-          --access-token ${{ inputs.access-token }} \
+          --access-token "${{ inputs.access-token }}" \
           --app-id "${{ inputs.github-app-id }}" \
           --private-key "${{ inputs.github-app-private-key }}" \
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
