@@ -53,6 +53,10 @@ inputs:
     description: "GitHub API base URL"
     required: false
     default: "https://api.github.com"
+  skip-tls-verification:
+    description: "Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access)"
+    required: false
+    default: "false"
   retention-days:
     description: "Number of days to retain artifacts"
     required: false
@@ -110,6 +114,28 @@ runs:
         echo "GH_HOST=${HOST}" >> $GITHUB_ENV
         echo "gh_host=${HOST}" >> $GITHUB_OUTPUT
         echo "✓ Resolved GH_HOST: ${HOST}"
+
+    - name: Configure TLS for GHES
+      if: ${{ inputs.skip-tls-verification == 'true' }}
+      shell: bash
+      run: |
+        HOST="${{ steps.resolve-host.outputs.gh_host }}"
+        echo "Configuring TLS bypass for non-github.com host: ${HOST}"
+
+        # Disable SSL verification for Node.js (Octokit/actions)
+        echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> $GITHUB_ENV
+
+        # Suppress Node.js TLS warnings
+        echo "NODE_NO_WARNINGS=1" >> $GITHUB_ENV
+
+        # Disable SSL verification for Git operations
+        echo "GIT_SSL_NO_VERIFY=1" >> $GITHUB_ENV
+        git config --global http.sslVerify false
+
+        # Disable SSL verification for gh CLI (Go-based, not affected by NODE_TLS)
+        gh config set -h "${HOST}" skip_tls_verification true
+
+        echo "✓ TLS bypass configured for ${HOST}"
 
     - name: Setup Paths
       id: setup-paths
