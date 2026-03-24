@@ -150,15 +150,12 @@ runs:
       env:
         GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
+        TOKEN_SOURCE: ${{ steps.app-install.outputs.token != '' && 'GitHub App' || (inputs.access-token != '' && 'Access Token' || 'github-token (fallback)') }}
       run: |
         echo "Validating repository: ${{ inputs.organization }}/${{ inputs.repository }}"
         echo "  GH_HOST: ${GH_HOST}"
         echo "  Token length: ${#GH_TOKEN}"
-        echo "  Token source: $(
-          if [ -n "${{ steps.app-install.outputs.token }}" ]; then echo 'GitHub App';
-          elif [ -n "${{ inputs.access-token }}" ]; then echo 'Access Token';
-          else echo 'github-token (fallback)'; fi
-        )"
+        echo "  Token source: ${TOKEN_SOURCE}"
 
         RESULT=$(gh api "repos/${{ inputs.organization }}/${{ inputs.repository }}" --jq '.full_name' 2>&1) && {
           echo "✓ Repository exists and is accessible: ${RESULT}"
@@ -178,15 +175,12 @@ runs:
       env:
         GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
+        TOKEN_SOURCE: ${{ steps.app-install.outputs.token != '' && 'GitHub App' || (inputs.access-token != '' && 'Access Token' || 'github-token (fallback)') }}
       run: |
         echo "Validating organization: ${{ inputs.organization }}"
         echo "  GH_HOST: ${GH_HOST}"
         echo "  Token length: ${#GH_TOKEN}"
-        echo "  Token source: $(
-          if [ -n "${{ steps.app-install.outputs.token }}" ]; then echo 'GitHub App';
-          elif [ -n "${{ inputs.access-token }}" ]; then echo 'Access Token';
-          else echo 'github-token (fallback)'; fi
-        )"
+        echo "  Token source: ${TOKEN_SOURCE}"
 
         RESULT=$(gh api "orgs/${{ inputs.organization }}" --jq '.login' 2>&1) && {
           echo "✓ Organization exists and is accessible: ${RESULT}"
