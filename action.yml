@@ -159,7 +159,13 @@ runs:
           fi
           NEW_VERSION=$(gh --version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           echo "  gh CLI version after upgrade: ${NEW_VERSION}"
-          gh config set -h "${HOST}" skip_tls_verification true
+          NEW_MAJOR=$(echo "$NEW_VERSION" | cut -d. -f1)
+          NEW_MINOR=$(echo "$NEW_VERSION" | cut -d. -f2)
+          if [[ "$NEW_MAJOR" -gt 2 ]] || { [[ "$NEW_MAJOR" -eq 2 ]] && [[ "$NEW_MINOR" -ge 54 ]]; }; then
+            gh config set -h "${HOST}" skip_tls_verification true
+          else
+            echo "::warning::gh CLI ${NEW_VERSION} still does not support skip_tls_verification. gh API calls to GHES may fail with TLS errors. Node.js, Git, and curl TLS bypass are still active."
+          fi
         fi
 
         echo "✓ TLS bypass configured for ${HOST}"
@@ -214,7 +220,7 @@ runs:
         echo "  Token source: ${TOKEN_SOURCE}"
         echo "  Skip TLS: ${SKIP_TLS}"
 
-        CURL_OPTS=(-sf --max-time 15)
+        CURL_OPTS=(-s --max-time 15)
         if [[ "${SKIP_TLS}" == "true" ]]; then
           CURL_OPTS+=(-k)
         fi
@@ -224,7 +230,7 @@ runs:
           -H "Accept: application/vnd.github+json" \
           -o /tmp/repo-validate.json \
           -w "%{http_code}" \
-          "${BASE_URL}/repos/${{ inputs.organization }}/${{ inputs.repository }}" 2>&1) || true
+          "${BASE_URL}/repos/${{ inputs.organization }}/${{ inputs.repository }}") || true
 
         if [[ "$HTTP_CODE" == "200" ]]; then
           FULL_NAME=$(jq -r '.full_name' /tmp/repo-validate.json 2>/dev/null)
@@ -255,7 +261,7 @@ runs:
         echo "  Token source: ${TOKEN_SOURCE}"
         echo "  Skip TLS: ${SKIP_TLS}"
 
-        CURL_OPTS=(-sf --max-time 15)
+        CURL_OPTS=(-s --max-time 15)
         if [[ "${SKIP_TLS}" == "true" ]]; then
           CURL_OPTS+=(-k)
         fi
@@ -265,7 +271,7 @@ runs:
           -H "Accept: application/vnd.github+json" \
           -o /tmp/org-validate.json \
           -w "%{http_code}" \
-          "${BASE_URL}/orgs/${{ inputs.organization }}" 2>&1) || true
+          "${BASE_URL}/orgs/${{ inputs.organization }}") || true
 
         if [[ "$HTTP_CODE" == "200" ]]; then
           LOGIN=$(jq -r '.login' /tmp/org-validate.json 2>/dev/null)
