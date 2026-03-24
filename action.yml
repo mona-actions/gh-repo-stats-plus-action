@@ -120,6 +120,13 @@ runs:
       shell: bash
       run: |
         HOST="${{ steps.resolve-host.outputs.gh_host }}"
+
+        # Guard: refuse to disable TLS for public github.com
+        if [[ "$HOST" == "github.com" ]]; then
+          echo "::error::Refusing to disable TLS verification for public github.com. Remove 'skip-tls-verification' or use a GHES base-url."
+          exit 1
+        fi
+
         echo "Configuring TLS bypass for non-github.com host: ${HOST}"
 
         # Disable SSL verification for Node.js (Octokit/actions)
@@ -128,9 +135,8 @@ runs:
         # Suppress Node.js TLS warnings
         echo "NODE_NO_WARNINGS=1" >> $GITHUB_ENV
 
-        # Disable SSL verification for Git operations
-        echo "GIT_SSL_NO_VERIFY=1" >> $GITHUB_ENV
-        git config --global http.sslVerify false
+        # Disable SSL verification for Git operations scoped to the GHES host
+        git config --global "http.https://${HOST}/.sslVerify" false
 
         # Disable SSL verification for gh CLI (Go-based, not affected by NODE_TLS)
         gh config set -h "${HOST}" skip_tls_verification true
