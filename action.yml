@@ -152,11 +152,25 @@ runs:
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
       run: |
         echo "Validating repository: ${{ inputs.organization }}/${{ inputs.repository }}"
-        if ! gh repo view ${{ inputs.organization }}/${{ inputs.repository }} --json name > /dev/null 2>&1; then
-          echo "::error::Repository not found: ${{ inputs.organization }}/${{ inputs.repository }}. Please verify the organization and repository names are correct and that you have access to this repository."
-          exit 1
-        fi
-        echo "✓ Repository exists and is accessible"
+        echo "  GH_HOST: ${GH_HOST}"
+        echo "  Token length: ${#GH_TOKEN}"
+        echo "  Token source: $(
+          if [ -n "${{ steps.app-install.outputs.token }}" ]; then echo 'GitHub App';
+          elif [ -n "${{ inputs.access-token }}" ]; then echo 'Access Token';
+          else echo 'github-token (fallback)'; fi
+        )"
+
+        RESULT=$(gh api "repos/${{ inputs.organization }}/${{ inputs.repository }}" --jq '.full_name' 2>&1) && {
+          echo "✓ Repository exists and is accessible: ${RESULT}"
+          exit 0
+        }
+
+        echo "::error::Failed to validate repository: ${{ inputs.organization }}/${{ inputs.repository }}"
+        echo "API response: ${RESULT}"
+        echo ""
+        echo "Debug: gh auth status"
+        gh auth status 2>&1 || true
+        exit 1
 
     - name: Validate Organization Exists
       if: ${{ inputs.type == 'organization' }}
@@ -166,11 +180,25 @@ runs:
         GH_HOST: ${{ steps.resolve-host.outputs.gh_host }}
       run: |
         echo "Validating organization: ${{ inputs.organization }}"
-        if ! gh api /orgs/${{ inputs.organization }} > /dev/null 2>&1; then
-          echo "::error::Organization not found: ${{ inputs.organization }}. Please verify the organization name is correct and that you have access to this organization."
-          exit 1
-        fi
-        echo "✓ Organization exists and is accessible"
+        echo "  GH_HOST: ${GH_HOST}"
+        echo "  Token length: ${#GH_TOKEN}"
+        echo "  Token source: $(
+          if [ -n "${{ steps.app-install.outputs.token }}" ]; then echo 'GitHub App';
+          elif [ -n "${{ inputs.access-token }}" ]; then echo 'Access Token';
+          else echo 'github-token (fallback)'; fi
+        )"
+
+        RESULT=$(gh api "orgs/${{ inputs.organization }}" --jq '.login' 2>&1) && {
+          echo "✓ Organization exists and is accessible: ${RESULT}"
+          exit 0
+        }
+
+        echo "::error::Failed to validate organization: ${{ inputs.organization }}"
+        echo "API response: ${RESULT}"
+        echo ""
+        echo "Debug: gh auth status"
+        gh auth status 2>&1 || true
+        exit 1
 
     - name: Setup Node.js
       uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 #v6.2.0
