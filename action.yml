@@ -8,7 +8,7 @@ branding:
 
 inputs:
   type:
-    description: "Type of stats gathering: 'repository' or 'organization'"
+    description: "Type of stats gathering: 'repository', 'organization', or 'combine'"
     required: false
     default: "repository"
   github-token:
@@ -61,6 +61,18 @@ inputs:
     description: "Number of days to retain artifacts"
     required: false
     default: "7"
+  batch-size:
+    description: "Number of repositories per batch (enables batch processing for large organizations)"
+    required: false
+    default: ""
+  batch-index:
+    description: "Zero-based batch index (used with batch-size for parallel matrix jobs)"
+    required: false
+    default: ""
+  batch-delay:
+    description: "Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits"
+    required: false
+    default: ""
 
 outputs:
   output-dir:
@@ -307,8 +319,24 @@ runs:
         echo "✓ Dependencies installed successfully"
 
     - name: Gather Repo Stats
+      if: ${{ inputs.type != 'combine' }}
       shell: bash
+      env:
+        BATCH_SIZE: ${{ inputs.batch-size }}
+        BATCH_INDEX: ${{ inputs.batch-index }}
+        BATCH_DELAY: ${{ inputs.batch-delay }}
       run: |
+        BATCH_ARGS=""
+        if [[ -n "${BATCH_SIZE}" ]]; then
+          BATCH_ARGS+=" --batch-size ${BATCH_SIZE}"
+        fi
+        if [[ -n "${BATCH_INDEX}" ]]; then
+          BATCH_ARGS+=" --batch-index ${BATCH_INDEX}"
+        fi
+        if [[ -n "${BATCH_DELAY}" ]]; then
+          BATCH_ARGS+=" --batch-delay ${BATCH_DELAY}"
+        fi
+
         gh repo-stats-plus repo-stats \
           --org-name "${{ inputs.organization }}" \
           --access-token "${{ inputs.access-token }}" \
@@ -317,7 +345,8 @@ runs:
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
           --base-url "${{ inputs.base-url }}" \
           --repo-list "${{ steps.setup-paths.outputs.file }}" \
-          --output-dir "${{ steps.setup-paths.outputs.output_dir }}"
+          --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          ${BATCH_ARGS}
 
         echo "✓ Repository statistics gathered successfully"
 
@@ -408,12 +437,23 @@ runs:
 
         echo "✓ Migration audit CSV converted to markdown successfully"
 
+    - name: Combine Stats
+      if: ${{ inputs.type == 'combine' }}
+      shell: bash
+      run: |
+        gh repo-stats-plus combine-stats \
+          --files "${{ steps.setup-paths.outputs.output_dir }}/*.csv" \
+          --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          --output-file-name combined-stats.csv
+
+        echo "✓ Batch results combined successfully"
+
     - name: Upload Stats Artifact
       id: upload-artifact
       if: success()
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
       with:
-        name: repo-stats-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}
+        name: repo-stats-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
         path: ${{ steps.setup-paths.outputs.output_dir }}/
         retention-days: ${{ inputs.retention-days }}
 

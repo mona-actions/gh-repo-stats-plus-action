@@ -22,7 +22,7 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 
 | Input                    | Description                                                                                                               | Required | Default                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
-| `type`                   | Type of stats gathering: `repository` or `organization`                                                                   | No       | `repository`             |
+| `type`                   | Type of stats gathering: `repository`, `organization`, or `combine`                                                       | No       | `repository`             |
 | `github-token`           | GitHub token for authentication (e.g., `github.token`)                                                                    | **Yes**  |                          |
 | `ghec-token`             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                              | No       | `""`                     |
 | `access-token`           | Personal access token with repo access for gathering stats                                                                | No       | `""`                     |
@@ -36,6 +36,9 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 | `base-url`               | GitHub API base URL                                                                                                       | No       | `https://api.github.com` |
 | `skip-tls-verification`  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access) | No       | `false`                  |
 | `retention-days`         | Number of days to retain uploaded artifacts                                                                               | No       | `7`                      |
+| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations)                                       | No       | `""`                     |
+| `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                  | No       | `""`                     |
+| `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                  | No       | `""`                     |
 
 ## Outputs
 
@@ -147,12 +150,98 @@ To use with a GitHub Enterprise instance, set the `base-url` input to your GHE A
     base-url: https://github.example.com/api/v3
 ```
 
+### Batch Processing (Organization)
+
+For large organizations, use batch processing with GitHub Actions matrix strategy to parallelize stats collection. This uses the `--batch-size`, `--batch-index`, and `--batch-delay` flags added in [gh-repo-stats-plus v3.0.0](https://github.com/mona-actions/gh-repo-stats-plus/releases/tag/v3.0.0).
+
+A setup job calculates the number of batches, parallel collect jobs gather stats for each batch, and a final combine job merges results:
+
+```yaml
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.calc.outputs.matrix }}
+    steps:
+      - name: Calculate batch matrix
+        id: calc
+        run: |
+          REPO_COUNT=$(gh api "orgs/${ORG}" --jq '.public_repos + .total_private_repos')
+          BATCH_SIZE=${BATCH_SIZE_INPUT}
+          TOTAL_BATCHES=$(( (REPO_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+          echo "Org has ${REPO_COUNT} repos → ${TOTAL_BATCHES} batches of ${BATCH_SIZE}"
+          INDICES=$(jq -nc "[range(${TOTAL_BATCHES})]")
+          echo "matrix={\"batch-index\":${INDICES}}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          ORG: ${{ inputs.organization }}
+          BATCH_SIZE_INPUT: ${{ inputs.batch-size }}
+
+  collect:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gather Stats (batch ${{ matrix.batch-index }})
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          type: organization
+          github-token: ${{ github.token }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          organization: ${{ inputs.organization }}
+          batch-size: ${{ inputs.batch-size }}
+          batch-index: ${{ matrix.batch-index }}
+          batch-delay: "5"
+
+  combine:
+    needs: collect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: repo-stats-organization-*
+          path: output
+          merge-multiple: true
+      - name: Combine Results
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          type: combine
+          github-token: ${{ github.token }}
+          organization: ${{ inputs.organization }}
+```
+
+See [batch-organization-stats.yml](examples/batch-organization-stats.yml) for a complete workflow and the [batch processing docs](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/batch-processing.md) for more details.
+
+### Combining Batch Results
+
+Use `type: combine` to merge CSV files from multiple batch runs into a single file. This is typically used as the final job in a batched workflow after downloading all batch artifacts:
+
+```yaml
+- uses: actions/download-artifact@v4
+  with:
+    pattern: repo-stats-organization-*
+    path: output
+    merge-multiple: true
+
+- name: Combine Results
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: combine
+    github-token: ${{ github.token }}
+    organization: my-org
+```
+
 ## Examples
 
 The [examples/](examples/) directory contains complete workflow files and setups you can use as a starting point:
 
 - [**Repository Stats**](examples/repository-stats.yml) — A simple workflow that gathers stats for a single repository on a weekly schedule, with optional migration audit.
 - [**Organization Stats**](examples/organization-stats.yml) — A simple workflow that gathers stats for all repositories in an organization on a weekly schedule.
+- [**Batch Organization Stats**](examples/batch-organization-stats.yml) — A workflow that gathers stats for all repositories in a large organization using batch processing with matrix strategy, then combines results.
 - [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository and organization-wide stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
 ## CI
@@ -183,6 +272,7 @@ gh-repo-stats-plus-action/
 ├── examples/
 │   ├── repository-stats.yml    # Simple single-repo example
 │   ├── organization-stats.yml  # Simple org-wide example
+│   ├── batch-organization-stats.yml # Batch org stats with matrix strategy
 │   └── issue-ops/              # Full IssueOps example
 │       ├── gather-stats.yml
 │       ├── issue-templates/
