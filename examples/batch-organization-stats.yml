@@ -35,7 +35,7 @@ jobs:
       - name: Calculate batch matrix
         id: calc
         run: |
-          REPO_COUNT=$(gh api "orgs/${ORG}" --jq '.public_repos + .total_private_repos')
+          REPO_COUNT=$(gh api "orgs/${ORG}" --jq '(.public_repos // 0) + (.total_private_repos // 0)')
           BATCH_SIZE=${BATCH_SIZE_INPUT}
           TOTAL_BATCHES=$(( (REPO_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
           echo "Org has ${REPO_COUNT} repos → ${TOTAL_BATCHES} batches of ${BATCH_SIZE}"

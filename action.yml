@@ -109,6 +109,21 @@ runs:
         fi
         echo "✓ Repository checkout verified"
 
+    - name: Validate Inputs
+      shell: bash
+      env:
+        INPUT_TYPE: ${{ inputs.type }}
+      run: |
+        case "${INPUT_TYPE}" in
+          repository|organization|combine)
+            echo "✓ Valid type: ${INPUT_TYPE}"
+            ;;
+          *)
+            echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: repository, organization, combine."
+            exit 1
+            ;;
+        esac
+
     - name: Resolve GH_HOST
       id: resolve-host
       shell: bash
@@ -326,15 +341,18 @@ runs:
         BATCH_INDEX: ${{ inputs.batch-index }}
         BATCH_DELAY: ${{ inputs.batch-delay }}
       run: |
-        BATCH_ARGS=""
+        BATCH_ARGS=()
         if [[ -n "${BATCH_SIZE}" ]]; then
-          BATCH_ARGS+=" --batch-size ${BATCH_SIZE}"
+          [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
+          BATCH_ARGS+=(--batch-size "${BATCH_SIZE}")
         fi
         if [[ -n "${BATCH_INDEX}" ]]; then
-          BATCH_ARGS+=" --batch-index ${BATCH_INDEX}"
+          [[ "${BATCH_INDEX}" =~ ^[0-9]+$ ]] || { echo "::error::batch-index must be a non-negative integer"; exit 1; }
+          BATCH_ARGS+=(--batch-index "${BATCH_INDEX}")
         fi
         if [[ -n "${BATCH_DELAY}" ]]; then
-          BATCH_ARGS+=" --batch-delay ${BATCH_DELAY}"
+          [[ "${BATCH_DELAY}" =~ ^[0-9]+$ ]] || { echo "::error::batch-delay must be a non-negative integer"; exit 1; }
+          BATCH_ARGS+=(--batch-delay "${BATCH_DELAY}")
         fi
 
         gh repo-stats-plus repo-stats \
@@ -346,7 +364,7 @@ runs:
           --base-url "${{ inputs.base-url }}" \
           --repo-list "${{ steps.setup-paths.outputs.file }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
-          ${BATCH_ARGS}
+          "${BATCH_ARGS[@]}"
 
         echo "✓ Repository statistics gathered successfully"
 
