@@ -1,0 +1,20 @@
+name: Get Migration Audit
+description: Runs a migration audit for all repositories in an organization.
+title: "Migration Audit: [Organization Name]"
+labels: ["stats", "migration-audit"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide the following information to run a migration audit.
+
+        > **Note:** This runs `audit-all` which audits every repository in the organization. For large organizations, this may take a while.
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Enter the name of the organization to run the migration audit for.
+      placeholder: organization
+    validations:
+      required: true
