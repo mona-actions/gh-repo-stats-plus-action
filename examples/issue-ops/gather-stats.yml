@@ -114,8 +114,8 @@ jobs:
             echo "run_migration_audit=false" >> $GITHUB_OUTPUT
           fi
 
-          # Check if Batch Processing is selected (applies to organization and project-stats types)
-          if [[ "$TYPE_TO_CHECK" == "organization" || "$TYPE_TO_CHECK" == "project-stats" ]] && [[ "$ADDITIONAL_OPTIONS" == *"[x] Batch Processing"* ]]; then
+          # Check if Batch Processing is selected (applies to organization type only)
+          if [[ "$TYPE_TO_CHECK" == "organization" ]] && [[ "$ADDITIONAL_OPTIONS" == *"[x] Batch Processing"* ]]; then
             echo "use_batch=true" >> $GITHUB_OUTPUT
           else
             echo "use_batch=false" >> $GITHUB_OUTPUT
