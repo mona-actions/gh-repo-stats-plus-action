@@ -176,19 +176,16 @@ jobs:
           ORG: ${{ needs.gather-stats.outputs.organization }}
         run: |
           REPO_COUNT=$(gh api "orgs/${ORG}" --jq '(.public_repos // 0) + (.total_private_repos // 0)')
-
-          # Dynamically calculate batch size to target ~10 parallel jobs (max 256)
-          if [[ "${REPO_COUNT}" -le 50 ]]; then
-            BATCH_SIZE=${REPO_COUNT}
-          elif [[ "${REPO_COUNT}" -le 500 ]]; then
-            BATCH_SIZE=50
-          elif [[ "${REPO_COUNT}" -le 2500 ]]; then
-            BATCH_SIZE=250
-          else
-            BATCH_SIZE=500
-          fi
+          BATCH_SIZE=50
 
           TOTAL_BATCHES=$(( (REPO_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+
+          # GitHub Actions matrix limit is 256 jobs; increase batch size if needed
+          if [[ "${TOTAL_BATCHES}" -gt 256 ]]; then
+            BATCH_SIZE=$(( (REPO_COUNT + 255) / 256 ))
+            TOTAL_BATCHES=$(( (REPO_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+          fi
+
           echo "Org has ${REPO_COUNT} repos → ${TOTAL_BATCHES} batches of ${BATCH_SIZE}"
           INDICES=$(jq -nc "[range(${TOTAL_BATCHES})]")
           echo "matrix={\"batch-index\":${INDICES}}" >> "$GITHUB_OUTPUT"
