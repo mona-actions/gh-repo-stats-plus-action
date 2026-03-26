@@ -8,7 +8,7 @@ branding:
 
 inputs:
   type:
-    description: "Type of stats gathering: 'repository', 'organization', or 'combine'"
+    description: "Type of stats gathering: 'repository', 'organization', 'project-stats', 'app-install-stats', or 'combine'"
     required: false
     default: "repository"
   github-token:
@@ -115,11 +115,11 @@ runs:
         INPUT_TYPE: ${{ inputs.type }}
       run: |
         case "${INPUT_TYPE}" in
-          repository|organization|combine)
+          repository|organization|project-stats|app-install-stats|combine)
             echo "✓ Valid type: ${INPUT_TYPE}"
             ;;
           *)
-            echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: repository, organization, combine."
+            echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: repository, organization, project-stats, app-install-stats, combine."
             exit 1
             ;;
         esac
@@ -271,8 +271,25 @@ runs:
         cat /tmp/repo-validate.json 2>/dev/null || echo "  (no response body)"
         exit 1
 
+    - name: Validate App Install Stats Auth
+      if: ${{ inputs.type == 'app-install-stats' }}
+      shell: bash
+      env:
+        ACCESS_TOKEN: ${{ inputs.access-token }}
+        APP_ID: ${{ inputs.github-app-id }}
+        APP_KEY: ${{ inputs.github-app-private-key }}
+      run: |
+        if [[ -z "${ACCESS_TOKEN}" ]]; then
+          echo "::error::app-install-stats requires a Personal Access Token (access-token). GitHub App tokens cannot view other apps' installations."
+          exit 1
+        fi
+        if [[ -n "${APP_ID}" ]] || [[ -n "${APP_KEY}" ]]; then
+          echo "::warning::GitHub App credentials are ignored for app-install-stats. Only the access-token (PAT) will be used."
+        fi
+        echo "✓ App install stats authentication validated"
+
     - name: Validate Organization Exists
-      if: ${{ inputs.type == 'organization' }}
+      if: ${{ inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' }}
       shell: bash
       env:
         GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
@@ -334,7 +351,7 @@ runs:
         echo "✓ Dependencies installed successfully"
 
     - name: Gather Repo Stats
-      if: ${{ inputs.type != 'combine' }}
+      if: ${{ inputs.type == 'repository' || inputs.type == 'organization' }}
       shell: bash
       env:
         BATCH_SIZE: ${{ inputs.batch-size }}
@@ -367,6 +384,53 @@ runs:
           "${BATCH_ARGS[@]}"
 
         echo "✓ Repository statistics gathered successfully"
+
+    - name: Gather Project Stats
+      if: ${{ inputs.type == 'project-stats' }}
+      shell: bash
+      env:
+        BATCH_SIZE: ${{ inputs.batch-size }}
+        BATCH_INDEX: ${{ inputs.batch-index }}
+        BATCH_DELAY: ${{ inputs.batch-delay }}
+      run: |
+        BATCH_ARGS=()
+        if [[ -n "${BATCH_SIZE}" ]]; then
+          [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] && [[ "${BATCH_SIZE}" -ge 1 ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
+          BATCH_ARGS+=(--batch-size "${BATCH_SIZE}")
+        fi
+        if [[ -n "${BATCH_INDEX}" ]]; then
+          [[ "${BATCH_INDEX}" =~ ^[0-9]+$ ]] || { echo "::error::batch-index must be a non-negative integer"; exit 1; }
+          BATCH_ARGS+=(--batch-index "${BATCH_INDEX}")
+        fi
+        if [[ -n "${BATCH_DELAY}" ]]; then
+          [[ "${BATCH_DELAY}" =~ ^[0-9]+$ ]] || { echo "::error::batch-delay must be a non-negative integer"; exit 1; }
+          BATCH_ARGS+=(--batch-delay "${BATCH_DELAY}")
+        fi
+
+        gh repo-stats-plus project-stats \
+          --org-name "${{ inputs.organization }}" \
+          --access-token "${{ inputs.access-token }}" \
+          --app-id "${{ inputs.github-app-id }}" \
+          --private-key "${{ inputs.github-app-private-key }}" \
+          --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
+          --base-url "${{ inputs.base-url }}" \
+          --repo-list "${{ steps.setup-paths.outputs.file }}" \
+          --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          "${BATCH_ARGS[@]}"
+
+        echo "✓ Project statistics gathered successfully"
+
+    - name: Gather App Install Stats
+      if: ${{ inputs.type == 'app-install-stats' }}
+      shell: bash
+      run: |
+        gh repo-stats-plus app-install-stats \
+          --org-name "${{ inputs.organization }}" \
+          --access-token "${{ inputs.access-token }}" \
+          --base-url "${{ inputs.base-url }}" \
+          --output-dir "${{ steps.setup-paths.outputs.output_dir }}"
+
+        echo "✓ App install statistics gathered successfully"
 
     - name: Run Migration Audit for Repository
       id: migration-audit-repo
@@ -495,16 +559,23 @@ runs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Create Stats Placeholder
-      if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'combine') }}
+      if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' || inputs.type == 'combine') }}
       shell: bash
       run: |
-        MARKDOWN="## 📊 Repository Statistics\n\n"
-
-        if [[ "${{ inputs.type }}" == "combine" ]]; then
-          MARKDOWN+="Batch results have been combined.\n\n"
-        else
-          MARKDOWN+="Statistics have been collected for the organization.\n\n"
-        fi
+        case "${{ inputs.type }}" in
+          combine)
+            MARKDOWN="## 📊 Statistics\n\nBatch results have been combined.\n\n"
+            ;;
+          project-stats)
+            MARKDOWN="## 📊 Project Statistics\n\nProject statistics have been collected for the organization.\n\n"
+            ;;
+          app-install-stats)
+            MARKDOWN="## 📊 App Install Statistics\n\nApp installation statistics have been collected for the organization.\n\n"
+            ;;
+          *)
+            MARKDOWN="## 📊 Repository Statistics\n\nStatistics have been collected for the organization.\n\n"
+            ;;
+        esac
 
         MARKDOWN+="Please download the artifacts to view the detailed statistics.\n\n"
 
