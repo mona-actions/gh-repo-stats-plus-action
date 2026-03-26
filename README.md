@@ -36,7 +36,7 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 | `base-url`               | GitHub API base URL                                                                                                       | No       | `https://api.github.com` |
 | `skip-tls-verification`  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access) | No       | `false`                  |
 | `retention-days`         | Number of days to retain uploaded artifacts                                                                               | No       | `7`                      |
-| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations)                                       | No       | `""`                     |
+| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations). **Cannot be combined with `repository`** — batch mode generates its own repo list. | No       | `""`                     |
 | `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                  | No       | `""`                     |
 | `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                  | No       | `""`                     |
 

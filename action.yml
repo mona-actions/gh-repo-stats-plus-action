@@ -378,6 +378,14 @@ runs:
           unset BATCH_DELAY
         fi
 
+        REPO_LIST_ARGS=()
+        REPO_LIST_FILE="${{ steps.setup-paths.outputs.file }}"
+        if [[ -n "${REPO_LIST_FILE}" ]] && [[ -z "${BATCH_SIZE}" ]]; then
+          REPO_LIST_ARGS+=(--repo-list "${REPO_LIST_FILE}")
+        elif [[ -n "${REPO_LIST_FILE}" ]] && [[ -n "${BATCH_SIZE}" ]]; then
+          echo "::warning::--repo-list is ignored when batch mode (--batch-size) is enabled. Batch mode generates its own repo list."
+        fi
+
         gh repo-stats-plus repo-stats \
           --org-name "${{ inputs.organization }}" \
           --access-token "${{ inputs.access-token }}" \
@@ -385,8 +393,8 @@ runs:
           --private-key "${{ inputs.github-app-private-key }}" \
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
           --base-url "${{ inputs.base-url }}" \
-          --repo-list "${{ steps.setup-paths.outputs.file }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          "${REPO_LIST_ARGS[@]}" \
           "${BATCH_ARGS[@]}"
 
         echo "✓ Repository statistics gathered successfully"
@@ -419,6 +427,14 @@ runs:
           unset BATCH_DELAY
         fi
 
+        REPO_LIST_ARGS=()
+        REPO_LIST_FILE="${{ steps.setup-paths.outputs.file }}"
+        if [[ -n "${REPO_LIST_FILE}" ]] && [[ -z "${BATCH_SIZE}" ]]; then
+          REPO_LIST_ARGS+=(--repo-list "${REPO_LIST_FILE}")
+        elif [[ -n "${REPO_LIST_FILE}" ]] && [[ -n "${BATCH_SIZE}" ]]; then
+          echo "::warning::--repo-list is ignored when batch mode (--batch-size) is enabled. Batch mode generates its own repo list."
+        fi
+
         gh repo-stats-plus project-stats \
           --org-name "${{ inputs.organization }}" \
           --access-token "${{ inputs.access-token }}" \
@@ -426,8 +442,8 @@ runs:
           --private-key "${{ inputs.github-app-private-key }}" \
           --app-installation-id "${{ steps.app-install.outputs.installation-id }}" \
           --base-url "${{ inputs.base-url }}" \
-          --repo-list "${{ steps.setup-paths.outputs.file }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          "${REPO_LIST_ARGS[@]}" \
           "${BATCH_ARGS[@]}"
 
         echo "✓ Project statistics gathered successfully"
