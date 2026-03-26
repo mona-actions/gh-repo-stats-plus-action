@@ -22,6 +22,10 @@ on:
         description: "Repos per batch"
         required: true
         default: "50"
+      run-migration-audit:
+        description: "Run migration audit for the organization (runs once, not per-batch)"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -92,3 +96,20 @@ jobs:
       - name: Print artifact ID
         run: |
           echo "Combined artifact ID: ${{ steps.combine.outputs.artifact-id }}"
+
+  # Optional: Run migration audit once for the entire org (not per-batch)
+  migration-audit:
+    needs: collect
+    if: ${{ inputs.run-migration-audit == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Migration Audit
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          type: migration-audit
+          github-token: ${{ github.token }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          organization: ${{ inputs.organization }}

@@ -64,6 +64,8 @@ jobs:
           LABELS='${{ toJSON(github.event.issue.labels.*.name) }}'
           if echo "$LABELS" | jq -e 'index("repository")' > /dev/null 2>&1; then
             TYPE_TO_CHECK="repository"
+          elif echo "$LABELS" | jq -e 'index("migration-audit")' > /dev/null 2>&1; then
+            TYPE_TO_CHECK="migration-audit"
           elif echo "$LABELS" | jq -e 'index("project-stats")' > /dev/null 2>&1; then
             TYPE_TO_CHECK="project-stats"
           elif echo "$LABELS" | jq -e 'index("app-install-stats")' > /dev/null 2>&1; then
@@ -71,7 +73,7 @@ jobs:
           elif echo "$LABELS" | jq -e 'index("organization")' > /dev/null 2>&1; then
             TYPE_TO_CHECK="organization"
           else
-            echo "::error::Unable to determine type from issue labels. Expected 'repository', 'organization', 'project-stats', or 'app-install-stats' label."
+            echo "::error::Unable to determine type from issue labels. Expected 'repository', 'organization', 'project-stats', 'app-install-stats', or 'migration-audit' label."
             exit 1
           fi
 

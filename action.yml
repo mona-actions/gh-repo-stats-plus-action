@@ -8,7 +8,7 @@ branding:
 
 inputs:
   type:
-    description: "Type of stats gathering: 'repository', 'organization', 'project-stats', 'app-install-stats', or 'combine'"
+    description: "Type of stats gathering: 'repository', 'organization', 'project-stats', 'app-install-stats', 'migration-audit', or 'combine'"
     required: false
     default: "repository"
   github-token:
@@ -92,7 +92,7 @@ outputs:
     value: ${{ steps.setup-paths.outputs.output_dir }}/audit.md
   migration-audit:
     description: "Whether migration audit was run (true/false)"
-    value: ${{ inputs.run-migration-audit }}
+    value: ${{ inputs.run-migration-audit == 'true' || inputs.type == 'migration-audit' }}
   artifact-id:
     description: "ID of the uploaded artifact containing the stats"
     value: ${{ steps.upload-artifact.outputs.artifact-id }}
@@ -115,11 +115,11 @@ runs:
         INPUT_TYPE: ${{ inputs.type }}
       run: |
         case "${INPUT_TYPE}" in
-          repository|organization|project-stats|app-install-stats|combine)
+          repository|organization|project-stats|app-install-stats|migration-audit|combine)
             echo "✓ Valid type: ${INPUT_TYPE}"
             ;;
           *)
-            echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: repository, organization, project-stats, app-install-stats, combine."
+            echo "::error::Invalid type '${INPUT_TYPE}'. Must be one of: repository, organization, project-stats, app-install-stats, migration-audit, combine."
             exit 1
             ;;
         esac
@@ -289,7 +289,7 @@ runs:
         echo "✓ App install stats authentication validated"
 
     - name: Validate Organization Exists
-      if: ${{ inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' }}
+      if: ${{ inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' || inputs.type == 'migration-audit' }}
       shell: bash
       env:
         GH_TOKEN: ${{ steps.app-install.outputs.token || inputs.access-token || inputs.github-token }}
@@ -457,9 +457,15 @@ runs:
       run: |
         echo "::warning::Migration audit failed but repo stats completed successfully. Check logs above for audit errors."
 
+    - name: Warn Migration Audit Skipped (Batching)
+      if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index != '' }}
+      shell: bash
+      run: |
+        echo "::warning::Migration audit (audit-all) is skipped during batch processing to avoid running a full-org audit in every batch job. Run migration audit in a separate non-batched job instead."
+
     - name: Run Migration Audit for Organization
       id: migration-audit-org
-      if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'organization' }}
+      if: ${{ (inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index == '') || inputs.type == 'migration-audit' }}
       continue-on-error: true
       shell: bash
       run: |
@@ -559,7 +565,7 @@ runs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Create Stats Placeholder
-      if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' || inputs.type == 'combine') }}
+      if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' || inputs.type == 'migration-audit' || inputs.type == 'combine') }}
       shell: bash
       run: |
         case "${{ inputs.type }}" in
@@ -571,6 +577,9 @@ runs:
             ;;
           app-install-stats)
             MARKDOWN="## 📊 App Install Statistics\n\nApp installation statistics have been collected for the organization.\n\n"
+            ;;
+          migration-audit)
+            MARKDOWN="## 🔍 Migration Audit\n\nMigration audit has been completed for the organization.\n\n"
             ;;
           *)
             MARKDOWN="## 📊 Repository Statistics\n\nStatistics have been collected for the organization.\n\n"
