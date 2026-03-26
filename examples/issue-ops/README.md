@@ -18,7 +18,9 @@ issue-ops/
 ├── gather-stats.yml                        # Workflow file (copy to .github/workflows/)
 ├── issue-templates/
 │   ├── 01-get-repo-stats.yml               # Issue template for single repository stats
-│   └── 02-get-org-repo-stats.yml           # Issue template for organization-wide stats
+│   ├── 02-get-org-repo-stats.yml           # Issue template for organization-wide stats
+│   ├── 03-get-project-stats.yml            # Issue template for project statistics
+│   └── 04-get-app-install-stats.yml        # Issue template for app installation stats
 └── README.md
 ```
 
@@ -39,8 +41,10 @@ Copy the files in `issue-templates/` to `.github/ISSUE_TEMPLATE/` in your reposi
 
 - [01-get-repo-stats.yml](issue-templates/01-get-repo-stats.yml) — Prompts for an `organization/repository` name. Applies the `stats` and `repository` labels.
 - [02-get-org-repo-stats.yml](issue-templates/02-get-org-repo-stats.yml) — Prompts for an organization name. Applies the `stats` and `organization` labels.
+- [03-get-project-stats.yml](issue-templates/03-get-project-stats.yml) — Prompts for an organization name. Applies the `stats` and `project-stats` labels. Includes an optional **Batch Processing** checkbox.
+- [04-get-app-install-stats.yml](issue-templates/04-get-app-install-stats.yml) — Prompts for an organization name. Applies the `stats` and `app-install-stats` labels. Requires a PAT (GitHub App tokens cannot view other apps' installations).
 
-Both templates include an optional **Migration Audit** checkbox.
+Both repository and organization templates include an optional **Migration Audit** checkbox.
 
 ## Setup
 
@@ -49,7 +53,7 @@ Both templates include an optional **Migration Audit** checkbox.
 3. Configure the required secrets:
    - `ACCESS_TOKEN` — A PAT with `repo` scope, **or**
    - `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` — GitHub App credentials
-4. Create the `stats`, `repository`, and `organization` labels in your repository if they don't already exist
+4. Create the `stats`, `repository`, `organization`, `project-stats`, and `app-install-stats` labels in your repository if they don't already exist
 
 ## Required Permissions
 

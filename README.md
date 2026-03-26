@@ -22,7 +22,7 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 
 | Input                    | Description                                                                                                               | Required | Default                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
-| `type`                   | Type of stats gathering: `repository`, `organization`, or `combine`                                                       | No       | `repository`             |
+| `type`                   | Type of stats gathering: `repository`, `organization`, `project-stats`, `app-install-stats`, or `combine`                 | No       | `repository`             |
 | `github-token`           | GitHub token for authentication (e.g., `github.token`)                                                                    | **Yes**  |                          |
 | `ghec-token`             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                              | No       | `""`                     |
 | `access-token`           | Personal access token with repo access for gathering stats                                                                | No       | `""`                     |
@@ -235,6 +235,38 @@ Use `type: combine` to merge CSV files from multiple batch runs into a single fi
     organization: my-org
 ```
 
+### Project Stats
+
+Collect [ProjectsV2 statistics](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/project-stats.md) for all repositories in an organization. This counts unique projects linked to repositories via issues and directly.
+
+```yaml
+- name: Gather Project Stats
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: project-stats
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+```
+
+Project stats supports the same batch processing options as organization stats (`batch-size`, `batch-index`, `batch-delay`) and can also use GitHub App authentication.
+
+### App Install Stats
+
+Collect [GitHub App installation statistics](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/app-install-stats.md) for an organization. Produces up to three CSV files showing which apps are installed on which repositories.
+
+> **Important:** This command requires a Personal Access Token (PAT) with `read:org` scope. GitHub App tokens **cannot** be used because app tokens can only see their own installation, not other apps' installations.
+
+```yaml
+- name: Gather App Install Stats
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: app-install-stats
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+```
+
 ## Examples
 
 The [examples/](examples/) directory contains complete workflow files and setups you can use as a starting point:
@@ -242,7 +274,9 @@ The [examples/](examples/) directory contains complete workflow files and setups
 - [**Repository Stats**](examples/repository-stats.yml) — A simple workflow that gathers stats for a single repository on a weekly schedule, with optional migration audit.
 - [**Organization Stats**](examples/organization-stats.yml) — A simple workflow that gathers stats for all repositories in an organization on a weekly schedule.
 - [**Batch Organization Stats**](examples/batch-organization-stats.yml) — A workflow that gathers stats for all repositories in a large organization using batch processing with matrix strategy, then combines results.
-- [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository and organization-wide stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
+- [**Project Stats**](examples/project-stats.yml) — A simple workflow that gathers ProjectsV2 statistics for all repositories in an organization on a weekly schedule.
+- [**App Install Stats**](examples/app-install-stats.yml) — A simple workflow that gathers GitHub App installation statistics for an organization on a weekly schedule.
+- [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository, organization-wide, project, and app install stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
 ## CI
 
@@ -273,11 +307,15 @@ gh-repo-stats-plus-action/
 │   ├── repository-stats.yml    # Simple single-repo example
 │   ├── organization-stats.yml  # Simple org-wide example
 │   ├── batch-organization-stats.yml # Batch org stats with matrix strategy
+│   ├── project-stats.yml       # Project statistics example
+│   ├── app-install-stats.yml   # App installation stats example
 │   └── issue-ops/              # Full IssueOps example
 │       ├── gather-stats.yml
 │       ├── issue-templates/
 │       │   ├── 01-get-repo-stats.yml
-│       │   └── 02-get-org-repo-stats.yml
+│       │   ├── 02-get-org-repo-stats.yml
+│       │   ├── 03-get-project-stats.yml
+│       │   └── 04-get-app-install-stats.yml
 │       └── README.md
 ├── CODEOWNERS
 ├── CONTRIBUTING.md
