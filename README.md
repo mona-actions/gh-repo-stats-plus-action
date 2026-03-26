@@ -20,25 +20,25 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 
 ## Inputs
 
-| Input                    | Description                                                                                                               | Required | Default                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
-| `type`                   | Type of stats gathering: `repository`, `organization`, `project-stats`, `app-install-stats`, or `combine`                 | No       | `repository`             |
-| `github-token`           | GitHub token for authentication (e.g., `github.token`)                                                                    | **Yes**  |                          |
-| `ghec-token`             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                              | No       | `""`                     |
-| `access-token`           | Personal access token with repo access for gathering stats                                                                | No       | `""`                     |
-| `github-app-id`          | GitHub App ID for authentication (requires `github-app-private-key`)                                                      | No       | `""`                     |
-| `github-app-private-key` | GitHub App private key for authentication (requires `github-app-id`)                                                      | No       | `""`                     |
-| `organization`           | Organization or owner name                                                                                                | **Yes**  |                          |
-| `repository`             | Repository name (required if `type` is `repository`)                                                                      | No       | `""`                     |
-| `output-dir`             | Directory where output files will be stored                                                                               | No       | `output`                 |
-| `run-migration-audit`    | Whether to run migration audit (`true`/`false`)                                                                           | No       | `false`                  |
-| `node-version`           | Node.js version to use                                                                                                    | No       | `25`                     |
-| `base-url`               | GitHub API base URL                                                                                                       | No       | `https://api.github.com` |
-| `skip-tls-verification`  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access) | No       | `false`                  |
-| `retention-days`         | Number of days to retain uploaded artifacts                                                                               | No       | `7`                      |
-| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations)                                       | No       | `""`                     |
-| `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                  | No       | `""`                     |
-| `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                  | No       | `""`                     |
+| Input                    | Description                                                                                                                                                             | Required | Default                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
+| `type`                   | Type of stats gathering: `repository`, `organization`, `project-stats`, `app-install-stats`, or `combine`                                                               | No       | `repository`             |
+| `github-token`           | GitHub token for authentication (e.g., `github.token`)                                                                                                                  | **Yes**  |                          |
+| `ghec-token`             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                                                                            | No       | `""`                     |
+| `access-token`           | Personal access token with repo access for gathering stats                                                                                                              | No       | `""`                     |
+| `github-app-id`          | GitHub App ID for authentication (requires `github-app-private-key`)                                                                                                    | No       | `""`                     |
+| `github-app-private-key` | GitHub App private key for authentication (requires `github-app-id`)                                                                                                    | No       | `""`                     |
+| `organization`           | Organization or owner name                                                                                                                                              | **Yes**  |                          |
+| `repository`             | Repository name (required if `type` is `repository`)                                                                                                                    | No       | `""`                     |
+| `output-dir`             | Directory where output files will be stored                                                                                                                             | No       | `output`                 |
+| `run-migration-audit`    | Whether to run migration audit (`true`/`false`)                                                                                                                         | No       | `false`                  |
+| `node-version`           | Node.js version to use                                                                                                                                                  | No       | `25`                     |
+| `base-url`               | GitHub API base URL                                                                                                                                                     | No       | `https://api.github.com` |
+| `skip-tls-verification`  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access)                                               | No       | `false`                  |
+| `retention-days`         | Number of days to retain uploaded artifacts                                                                                                                             | No       | `7`                      |
+| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations). **Cannot be combined with `repository`** — batch mode generates its own repo list. | No       | `""`                     |
+| `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                                                                | No       | `""`                     |
+| `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                                                                | No       | `""`                     |
 
 ## Outputs
 
