@@ -362,14 +362,20 @@ runs:
         if [[ -n "${BATCH_SIZE}" ]]; then
           [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] && [[ "${BATCH_SIZE}" -ge 1 ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
           BATCH_ARGS+=(--batch-size "${BATCH_SIZE}")
+        else
+          unset BATCH_SIZE
         fi
         if [[ -n "${BATCH_INDEX}" ]]; then
           [[ "${BATCH_INDEX}" =~ ^[0-9]+$ ]] || { echo "::error::batch-index must be a non-negative integer"; exit 1; }
           BATCH_ARGS+=(--batch-index "${BATCH_INDEX}")
+        else
+          unset BATCH_INDEX
         fi
         if [[ -n "${BATCH_DELAY}" ]]; then
           [[ "${BATCH_DELAY}" =~ ^[0-9]+$ ]] || { echo "::error::batch-delay must be a non-negative integer"; exit 1; }
           BATCH_ARGS+=(--batch-delay "${BATCH_DELAY}")
+        else
+          unset BATCH_DELAY
         fi
 
         gh repo-stats-plus repo-stats \
@@ -397,14 +403,20 @@ runs:
         if [[ -n "${BATCH_SIZE}" ]]; then
           [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] && [[ "${BATCH_SIZE}" -ge 1 ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
           BATCH_ARGS+=(--batch-size "${BATCH_SIZE}")
+        else
+          unset BATCH_SIZE
         fi
         if [[ -n "${BATCH_INDEX}" ]]; then
           [[ "${BATCH_INDEX}" =~ ^[0-9]+$ ]] || { echo "::error::batch-index must be a non-negative integer"; exit 1; }
           BATCH_ARGS+=(--batch-index "${BATCH_INDEX}")
+        else
+          unset BATCH_INDEX
         fi
         if [[ -n "${BATCH_DELAY}" ]]; then
           [[ "${BATCH_DELAY}" =~ ^[0-9]+$ ]] || { echo "::error::batch-delay must be a non-negative integer"; exit 1; }
           BATCH_ARGS+=(--batch-delay "${BATCH_DELAY}")
+        else
+          unset BATCH_DELAY
         fi
 
         gh repo-stats-plus project-stats \
