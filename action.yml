@@ -458,10 +458,13 @@ runs:
     - name: Combine Stats
       if: ${{ inputs.type == 'combine' }}
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        OUTPUT_DIR: ${{ steps.setup-paths.outputs.output_dir }}
       run: |
         gh repo-stats-plus combine-stats \
-          --files "${{ steps.setup-paths.outputs.output_dir }}/*.csv" \
-          --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
+          --files "${OUTPUT_DIR}"/*.csv \
+          --output-dir "${OUTPUT_DIR}" \
           --output-file-name combined-stats.csv
 
         echo "✓ Batch results combined successfully"
