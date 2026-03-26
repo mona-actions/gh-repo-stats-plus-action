@@ -495,12 +495,17 @@ runs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Create Stats Placeholder
-      if: ${{ success() && inputs.type == 'organization' }}
+      if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'combine') }}
       shell: bash
       run: |
         MARKDOWN="## 📊 Repository Statistics\n\n"
 
-        MARKDOWN+="Statistics have been collected for the organization.\n\n"
+        if [[ "${{ inputs.type }}" == "combine" ]]; then
+          MARKDOWN+="Batch results have been combined.\n\n"
+        else
+          MARKDOWN+="Statistics have been collected for the organization.\n\n"
+        fi
+
         MARKDOWN+="Please download the artifacts to view the detailed statistics.\n\n"
 
         MARKDOWN+="[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n"
@@ -508,4 +513,4 @@ runs:
 
         echo -e "$MARKDOWN" > ${{ steps.setup-paths.outputs.output_dir }}/stats.md
 
-        echo "✓ Stats placeholder for organization created successfully"
+        echo "✓ Stats placeholder created successfully"
