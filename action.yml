@@ -92,7 +92,7 @@ outputs:
     value: ${{ steps.setup-paths.outputs.output_dir }}/audit.md
   migration-audit:
     description: "Whether migration audit was run (true/false)"
-    value: ${{ inputs.run-migration-audit == 'true' || inputs.type == 'migration-audit' }}
+    value: ${{ (steps.migration-audit-org.outcome != '' && steps.migration-audit-org.outcome != 'skipped') || (steps.migration-audit-repo.outcome != '' && steps.migration-audit-repo.outcome != 'skipped') }}
   artifact-id:
     description: "ID of the uploaded artifact containing the stats"
     value: ${{ steps.upload-artifact.outputs.artifact-id }}
@@ -458,14 +458,14 @@ runs:
         echo "::warning::Migration audit failed but repo stats completed successfully. Check logs above for audit errors."
 
     - name: Warn Migration Audit Skipped (Batching)
-      if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index != '' }}
+      if: ${{ (inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index != '') || (inputs.type == 'migration-audit' && inputs.batch-index != '') }}
       shell: bash
       run: |
         echo "::warning::Migration audit (audit-all) is skipped during batch processing to avoid running a full-org audit in every batch job. Run migration audit in a separate non-batched job instead."
 
     - name: Run Migration Audit for Organization
       id: migration-audit-org
-      if: ${{ (inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index == '') || inputs.type == 'migration-audit' }}
+      if: ${{ (inputs.run-migration-audit == 'true' && inputs.type == 'organization' && inputs.batch-index == '') || (inputs.type == 'migration-audit' && inputs.batch-index == '') }}
       continue-on-error: true
       shell: bash
       run: |
