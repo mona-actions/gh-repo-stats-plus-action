@@ -369,7 +369,9 @@ runs:
         echo "✓ Repository statistics gathered successfully"
 
     - name: Run Migration Audit for Repository
+      id: migration-audit-repo
       if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'repository' }}
+      continue-on-error: true
       shell: bash
       run: |
         gh migration-audit audit-repo \
@@ -385,8 +387,16 @@ runs:
 
         echo "✓ Migration audit for repository completed successfully"
 
+    - name: Warn on Migration Audit Failure (Repository)
+      if: ${{ steps.migration-audit-repo.outcome == 'failure' }}
+      shell: bash
+      run: |
+        echo "::warning::Migration audit failed but repo stats completed successfully. Check logs above for audit errors."
+
     - name: Run Migration Audit for Organization
+      id: migration-audit-org
       if: ${{ inputs.run-migration-audit == 'true' && inputs.type == 'organization' }}
+      continue-on-error: true
       shell: bash
       run: |
         gh migration-audit audit-all \
@@ -400,6 +410,12 @@ runs:
           --disable-telemetry
 
         echo "✓ Migration audit for organization completed successfully"
+
+    - name: Warn on Migration Audit Failure (Organization)
+      if: ${{ steps.migration-audit-org.outcome == 'failure' }}
+      shell: bash
+      run: |
+        echo "::warning::Migration audit failed but repo stats completed successfully. Check logs above for audit errors."
 
     - name: Convert CSV to Markdown
       if: ${{ success() && inputs.type == 'repository' }}
@@ -429,7 +445,7 @@ runs:
         echo "✓ CSV converted to markdown successfully"
 
     - name: Convert Migration Audit to Markdown
-      if: inputs.run-migration-audit == 'true' && success() && inputs.type == 'repository'
+      if: inputs.run-migration-audit == 'true' && steps.migration-audit-repo.outcome == 'success' && inputs.type == 'repository'
       shell: bash
       run: |
         AUDIT_FILE="${{ steps.setup-paths.outputs.output_dir }}/${{ inputs.repository }}-audit.csv"
