@@ -24,3 +24,4 @@ body:
       description: Select any additional types of statistics you would like to gather.
       options:
         - label: Migration Audit
+        - label: Batch Processing

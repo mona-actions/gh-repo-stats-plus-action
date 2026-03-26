@@ -40,6 +40,13 @@ jobs:
     if: |
       contains(github.event.issue.labels.*.name, 'stats') && startsWith(github.event.comment.body, '/run-stats')
 
+    outputs:
+      organization: ${{ steps.repo-info.outputs.organization }}
+      repository: ${{ steps.repo-info.outputs.repository }}
+      type_to_check: ${{ steps.repo-info.outputs.type_to_check }}
+      run_migration_audit: ${{ steps.repo-info.outputs.run_migration_audit }}
+      use_batch: ${{ steps.repo-info.outputs.use_batch }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
@@ -94,7 +101,6 @@ jobs:
 
           echo "organization=${ORGANIZATION}" >> $GITHUB_OUTPUT
           echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
-          echo "output_dir=${GITHUB_WORKSPACE}/output" >> $GITHUB_OUTPUT
           echo "type_to_check=${TYPE_TO_CHECK}" >> $GITHUB_OUTPUT
 
           # Check if Migration Audit is selected
@@ -104,10 +110,27 @@ jobs:
             echo "run_migration_audit=false" >> $GITHUB_OUTPUT
           fi
 
+          # Check if Batch Processing is selected (only applies to organization type)
+          if [[ "$TYPE_TO_CHECK" == "organization" ]] && [[ "$ADDITIONAL_OPTIONS" == *"[x] Batch Processing"* ]]; then
+            echo "use_batch=true" >> $GITHUB_OUTPUT
+          else
+            echo "use_batch=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Start Process
         if: ${{ success() }}
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "🚀 Starting stats gathering process. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+
+  # Standard (non-batched) stats gathering
+  run-stats:
+    needs: gather-stats
+    runs-on: ubuntu-latest
+    if: needs.gather-stats.outputs.use_batch != 'true'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
       - name: Run Stats Gathering
         id: run-stats
@@ -117,11 +140,10 @@ jobs:
           access-token: ${{ secrets.ACCESS_TOKEN }}
           github-app-id: ${{ secrets.GITHUB_APP_ID }}
           github-app-private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
-          organization: ${{ steps.repo-info.outputs.organization }}
-          repository: ${{ steps.repo-info.outputs.repository }}
-          type: ${{ steps.repo-info.outputs.type_to_check }}
-          output-dir: ${{ steps.repo-info.outputs.output_dir }}
-          run-migration-audit: ${{ steps.repo-info.outputs.run_migration_audit }}
+          organization: ${{ needs.gather-stats.outputs.organization }}
+          repository: ${{ needs.gather-stats.outputs.repository }}
+          type: ${{ needs.gather-stats.outputs.type_to_check }}
+          run-migration-audit: ${{ needs.gather-stats.outputs.run_migration_audit }}
 
       - name: Post Results Comment
         if: success()
@@ -137,12 +159,115 @@ jobs:
           # Post comment
           echo -e "$COMMENT" | gh issue comment ${{ github.event.issue.number }} --body-file -
 
+  # Batched stats gathering: calculate matrix
+  batch-setup:
+    needs: gather-stats
+    runs-on: ubuntu-latest
+    if: needs.gather-stats.outputs.use_batch == 'true'
+    outputs:
+      matrix: ${{ steps.calc.outputs.matrix }}
+      batch_size: ${{ steps.calc.outputs.batch_size }}
+
+    steps:
+      - name: Calculate batch matrix
+        id: calc
+        env:
+          GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          ORG: ${{ needs.gather-stats.outputs.organization }}
+        run: |
+          REPO_COUNT=$(gh api "orgs/${ORG}" --jq '(.public_repos // 0) + (.total_private_repos // 0)')
+
+          # Dynamically calculate batch size to target ~10 parallel jobs (max 256)
+          if [[ "${REPO_COUNT}" -le 50 ]]; then
+            BATCH_SIZE=${REPO_COUNT}
+          elif [[ "${REPO_COUNT}" -le 500 ]]; then
+            BATCH_SIZE=50
+          elif [[ "${REPO_COUNT}" -le 2500 ]]; then
+            BATCH_SIZE=250
+          else
+            BATCH_SIZE=500
+          fi
+
+          TOTAL_BATCHES=$(( (REPO_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+          echo "Org has ${REPO_COUNT} repos → ${TOTAL_BATCHES} batches of ${BATCH_SIZE}"
+          INDICES=$(jq -nc "[range(${TOTAL_BATCHES})]")
+          echo "matrix={\"batch-index\":${INDICES}}" >> "$GITHUB_OUTPUT"
+          echo "batch_size=${BATCH_SIZE}" >> "$GITHUB_OUTPUT"
+
+  # Batched stats gathering: collect each batch in parallel
+  batch-collect:
+    needs: [gather-stats, batch-setup]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.batch-setup.outputs.matrix) }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Gather Stats (batch ${{ matrix.batch-index }})
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          type: organization
+          github-token: ${{ github.token }}
+          access-token: ${{ secrets.ACCESS_TOKEN }}
+          github-app-id: ${{ secrets.GITHUB_APP_ID }}
+          github-app-private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          organization: ${{ needs.gather-stats.outputs.organization }}
+          batch-size: ${{ needs.batch-setup.outputs.batch_size }}
+          batch-index: ${{ matrix.batch-index }}
+          batch-delay: "5"
+
+  # Batched stats gathering: combine results and run migration audit
+  batch-combine:
+    needs: [gather-stats, batch-collect]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      - name: Download batch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: repo-stats-organization-*
+          path: output
+          merge-multiple: true
+
+      - name: Combine Results
+        id: combine
+        uses: mona-actions/gh-repo-stats-plus-action@v1
+        with:
+          type: combine
+          github-token: ${{ github.token }}
+          organization: ${{ needs.gather-stats.outputs.organization }}
+
+      - name: Post Results Comment
+        if: success()
+        run: |
+          COMMENT="## 📊 Organization Statistics (Batched)\n\n"
+          COMMENT+="Statistics have been collected in batches and combined.\n\n"
+          COMMENT+="[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n"
+          COMMENT+="[Download Artifact](${{ steps.combine.outputs.artifact-id && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }})\n"
+          echo -e "$COMMENT" | gh issue comment ${{ github.event.issue.number }} --body-file -
+
+  # Report final status for both paths
+  report:
+    needs: [gather-stats, run-stats, batch-combine]
+    runs-on: ubuntu-latest
+    if: always() && needs.gather-stats.result == 'success'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
       - name: Report Success
-        if: ${{ success() }}
+        if: ${{ needs.run-stats.result == 'success' || needs.batch-combine.result == 'success' }}
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "✅ Process completed successfully! See the statistics above."
 
       - name: Report Failure
-        if: ${{ failure() || cancelled() }}
+        if: ${{ needs.run-stats.result == 'failure' || needs.batch-combine.result == 'failure' }}
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "❌ Stats gathering failed. Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
