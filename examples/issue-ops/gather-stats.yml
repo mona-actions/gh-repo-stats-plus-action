@@ -226,7 +226,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
       - name: Download batch artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           pattern: repo-stats-organization-*
           path: output
@@ -246,12 +246,12 @@ jobs:
           COMMENT="## 📊 Organization Statistics (Batched)\n\n"
           COMMENT+="Statistics have been collected in batches and combined.\n\n"
           COMMENT+="[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n"
-          COMMENT+="[Download Artifact](${{ steps.combine.outputs.artifact-id && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }})\n"
+          COMMENT+="[Download Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.combine.outputs.artifact-id }})\n"
           echo -e "$COMMENT" | gh issue comment ${{ github.event.issue.number }} --body-file -
 
   # Report final status for both paths
   report:
-    needs: [gather-stats, run-stats, batch-combine]
+    needs: [gather-stats, run-stats, batch-collect, batch-combine]
     runs-on: ubuntu-latest
     if: always() && needs.gather-stats.result == 'success'
 
@@ -265,6 +265,6 @@ jobs:
           gh issue comment ${{ github.event.issue.number }} --body "✅ Process completed successfully! See the statistics above."
 
       - name: Report Failure
-        if: ${{ needs.run-stats.result == 'failure' || needs.batch-combine.result == 'failure' }}
+        if: ${{ needs.run-stats.result == 'failure' || needs.batch-collect.result == 'failure' || needs.batch-combine.result == 'failure' }}
         run: |
           gh issue comment ${{ github.event.issue.number }} --body "❌ Stats gathering failed. Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."

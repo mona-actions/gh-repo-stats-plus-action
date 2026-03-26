@@ -343,7 +343,7 @@ runs:
       run: |
         BATCH_ARGS=()
         if [[ -n "${BATCH_SIZE}" ]]; then
-          [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
+          [[ "${BATCH_SIZE}" =~ ^[0-9]+$ ]] && [[ "${BATCH_SIZE}" -ge 1 ]] || { echo "::error::batch-size must be a positive integer"; exit 1; }
           BATCH_ARGS+=(--batch-size "${BATCH_SIZE}")
         fi
         if [[ -n "${BATCH_INDEX}" ]]; then
