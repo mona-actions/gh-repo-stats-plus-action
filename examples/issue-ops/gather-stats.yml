@@ -64,10 +64,14 @@ jobs:
           LABELS='${{ toJSON(github.event.issue.labels.*.name) }}'
           if echo "$LABELS" | jq -e 'index("repository")' > /dev/null 2>&1; then
             TYPE_TO_CHECK="repository"
+          elif echo "$LABELS" | jq -e 'index("project-stats")' > /dev/null 2>&1; then
+            TYPE_TO_CHECK="project-stats"
+          elif echo "$LABELS" | jq -e 'index("app-install-stats")' > /dev/null 2>&1; then
+            TYPE_TO_CHECK="app-install-stats"
           elif echo "$LABELS" | jq -e 'index("organization")' > /dev/null 2>&1; then
             TYPE_TO_CHECK="organization"
           else
-            echo "::error::Unable to determine type from issue labels. Expected 'repository' or 'organization' label."
+            echo "::error::Unable to determine type from issue labels. Expected 'repository', 'organization', 'project-stats', or 'app-install-stats' label."
             exit 1
           fi
 
@@ -110,8 +114,8 @@ jobs:
             echo "run_migration_audit=false" >> $GITHUB_OUTPUT
           fi
 
-          # Check if Batch Processing is selected (only applies to organization type)
-          if [[ "$TYPE_TO_CHECK" == "organization" ]] && [[ "$ADDITIONAL_OPTIONS" == *"[x] Batch Processing"* ]]; then
+          # Check if Batch Processing is selected (applies to organization and project-stats types)
+          if [[ "$TYPE_TO_CHECK" == "organization" || "$TYPE_TO_CHECK" == "project-stats" ]] && [[ "$ADDITIONAL_OPTIONS" == *"[x] Batch Processing"* ]]; then
             echo "use_batch=true" >> $GITHUB_OUTPUT
           else
             echo "use_batch=false" >> $GITHUB_OUTPUT
