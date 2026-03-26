@@ -383,7 +383,8 @@ runs:
         if [[ -n "${REPO_LIST_FILE}" ]] && [[ -z "${BATCH_SIZE}" ]]; then
           REPO_LIST_ARGS+=(--repo-list "${REPO_LIST_FILE}")
         elif [[ -n "${REPO_LIST_FILE}" ]] && [[ -n "${BATCH_SIZE}" ]]; then
-          echo "::warning::--repo-list is ignored when batch mode (--batch-size) is enabled. Batch mode generates its own repo list."
+          echo "::error::Batch mode (--batch-size) cannot be combined with a repository list (from the 'repository' input). Remove one of them."
+          exit 1
         fi
 
         gh repo-stats-plus repo-stats \
@@ -432,7 +433,8 @@ runs:
         if [[ -n "${REPO_LIST_FILE}" ]] && [[ -z "${BATCH_SIZE}" ]]; then
           REPO_LIST_ARGS+=(--repo-list "${REPO_LIST_FILE}")
         elif [[ -n "${REPO_LIST_FILE}" ]] && [[ -n "${BATCH_SIZE}" ]]; then
-          echo "::warning::--repo-list is ignored when batch mode (--batch-size) is enabled. Batch mode generates its own repo list."
+          echo "::error::Batch mode (--batch-size) cannot be combined with a repository list (from the 'repository' input). Remove one of them."
+          exit 1
         fi
 
         gh repo-stats-plus project-stats \
