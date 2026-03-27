@@ -280,6 +280,11 @@ The action supports resuming from the last saved state when a stats collection r
 - If the CLI fails before processing any repository, there is no state to resume from.
 - Resume applies to `repo-stats` and `project-stats` commands. The `app-install-stats` and `migration-audit` commands do not support resume.
 - Resume is not supported on GitHub Enterprise Server (GHES) because `actions/download-artifact@v4+` [does not support GHES](https://github.com/actions/download-artifact#ghes-support).
+- When a workflow is cancelled, state upload runs during GitHub Actions' cancellation grace period. If the output directory is very large, the upload may not complete in time.
+
+**Runner compatibility:**
+
+Resume works on both **GitHub-hosted** and **self-hosted** runners. On self-hosted runners with persistent workspaces, the CLI's state files may already exist on disk from a previous run. If the artifact download fails (e.g., no state artifact exists), the CLI will still pick up any local state files when `--resume-from-last-save` is active. Note that `actions/checkout@v4` cleans the workspace by default (`clean: true`), which removes local state files — to preserve them across runs on a self-hosted runner, set `output-dir` to an absolute path outside `$GITHUB_WORKSPACE`.
 
 See [examples/resume-stats.yml](examples/resume-stats.yml) for a complete workflow example.
 
