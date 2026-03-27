@@ -39,6 +39,8 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 | `batch-size`             | Number of repositories per batch (enables batch processing for large organizations). **Cannot be combined with `repository`** — batch mode generates its own repo list. | No       | `""`                     |
 | `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                                                                | No       | `""`                     |
 | `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                                                                | No       | `""`                     |
+| `resume-from-last-save`  | Resume from the last saved state. Auto-enabled when re-running failed jobs (`run_attempt > 1`). See [Resume Failed Runs](#resume-failed-runs).                          | No       | `false`                  |
+| `resume-run-id`          | Workflow run ID to download state from (for cross-run resume). Defaults to the current run ID.                                                                          | No       | `""`                     |
 
 ## Outputs
 
@@ -235,6 +237,52 @@ Use `type: combine` to merge CSV files from multiple batch runs into a single fi
     organization: my-org
 ```
 
+### Resume Failed Runs
+
+The action supports resuming from the last saved state when a stats collection run fails partway through. The underlying [gh-repo-stats-plus](https://github.com/mona-actions/gh-repo-stats-plus) CLI writes state files (`last_known_state_<org>.json`) and partial CSVs to the output directory after each successfully processed repository. When resume is enabled, the action restores these files and passes `--resume-from-last-save` to the CLI, which skips already-processed repositories.
+
+**Automatic resume (re-run failed jobs):** When you click "Re-run failed jobs" in the GitHub Actions UI, the action detects `run_attempt > 1` and automatically downloads the state artifact from the previous attempt. No configuration needed:
+
+```yaml
+- name: Gather Organization Stats
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: organization
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+    # Resume is automatic when re-running failed jobs — no extra inputs needed
+```
+
+**Explicit resume (cross-run):** To resume from a completely different workflow run, provide the run ID:
+
+```yaml
+- name: Gather Organization Stats (resuming)
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: organization
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+    resume-from-last-save: "true"
+    resume-run-id: "1234567890" # Run ID of the failed run to resume from
+```
+
+**How it works:**
+
+1. When a stats collection step fails, the action uploads the output directory (containing state files and partial CSVs) as a state artifact.
+2. On the next run (re-run or explicit), the action downloads the state artifact into the output directory before invoking the CLI.
+3. The CLI reads the state file, identifies which repositories have already been processed, and resumes from where it left off.
+
+**Limitations:**
+
+- If the GitHub Actions runner is terminated abruptly (infrastructure issue, spot instance preemption), the failure upload step may not execute — no state is saved in that case.
+- If the CLI fails before processing any repository, there is no state to resume from.
+- Resume applies to `repo-stats` and `project-stats` commands. The `app-install-stats` and `migration-audit` commands do not support resume.
+- Resume is not supported on GitHub Enterprise Server (GHES) because `actions/download-artifact@v4+` [does not support GHES](https://github.com/actions/download-artifact#ghes-support).
+
+See [examples/resume-stats.yml](examples/resume-stats.yml) for a complete workflow example.
+
 ### Project Stats
 
 Collect [ProjectsV2 statistics](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/project-stats.md) for all repositories in an organization. This counts unique projects linked to repositories via issues and directly.
@@ -276,6 +324,7 @@ The [examples/](examples/) directory contains complete workflow files and setups
 - [**Batch Organization Stats**](examples/batch-organization-stats.yml) — A workflow that gathers stats for all repositories in a large organization using batch processing with matrix strategy, then combines results.
 - [**Project Stats**](examples/project-stats.yml) — A simple workflow that gathers ProjectsV2 statistics for all repositories in an organization on a weekly schedule.
 - [**App Install Stats**](examples/app-install-stats.yml) — A simple workflow that gathers GitHub App installation statistics for an organization on a weekly schedule.
+- [**Resume Stats**](examples/resume-stats.yml) — A workflow demonstrating how to resume failed stats collection runs, with both automatic (re-run) and explicit (cross-run) resume patterns.
 - [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository, organization-wide, project, and app install stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
 ## CI
