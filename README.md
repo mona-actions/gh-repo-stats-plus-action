@@ -330,7 +330,7 @@ The [examples/](examples/) directory contains complete workflow files and setups
 - [**Project Stats**](examples/project-stats.yml) — A simple workflow that gathers ProjectsV2 statistics for all repositories in an organization on a weekly schedule.
 - [**App Install Stats**](examples/app-install-stats.yml) — A simple workflow that gathers GitHub App installation statistics for an organization on a weekly schedule.
 - [**Resume Stats**](examples/resume-stats.yml) — A workflow demonstrating how to resume failed stats collection runs, with both automatic (re-run) and explicit (cross-run) resume patterns.
-- [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository, organization-wide, project, and app install stats, parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
+- [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository and organization-wide stats (with an operation dropdown to select repo stats, project stats, app installs, or migration audit), parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
 ## CI
 
@@ -363,13 +363,12 @@ gh-repo-stats-plus-action/
 │   ├── batch-organization-stats.yml # Batch org stats with matrix strategy
 │   ├── project-stats.yml       # Project statistics example
 │   ├── app-install-stats.yml   # App installation stats example
+│   ├── resume-stats.yml        # Resume failed runs example
 │   └── issue-ops/              # Full IssueOps example
 │       ├── gather-stats.yml
 │       ├── issue-templates/
 │       │   ├── 01-get-repo-stats.yml
-│       │   ├── 02-get-org-repo-stats.yml
-│       │   ├── 03-get-project-stats.yml
-│       │   └── 04-get-app-install-stats.yml
+│       │   └── 02-get-org-stats.yml
 │       └── README.md
 ├── CODEOWNERS
 ├── CONTRIBUTING.md
