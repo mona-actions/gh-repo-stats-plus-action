@@ -270,7 +270,7 @@ The action supports resuming from the last saved state when a stats collection r
 
 **How it works:**
 
-1. When a stats collection step fails, the action uploads the output directory (containing state files and partial CSVs) as a state artifact.
+1. When a stats collection step fails or is cancelled, the action uploads the output directory (containing state files and partial CSVs) as a state artifact.
 2. On the next run (re-run or explicit), the action downloads the state artifact into the output directory before invoking the CLI.
 3. The CLI reads the state file, identifies which repositories have already been processed, and resumes from where it left off.
 

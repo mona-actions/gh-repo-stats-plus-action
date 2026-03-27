@@ -472,7 +472,7 @@ runs:
         echo "✓ Repository statistics gathered successfully"
 
     - name: Upload State on Failure (Repo Stats)
-      if: ${{ failure() && steps.gather-repo-stats.outcome == 'failure' }}
+      if: ${{ (failure() || cancelled()) && steps.gather-repo-stats.outcome != 'success' && steps.gather-repo-stats.outcome != 'skipped' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
       with:
         name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
@@ -540,7 +540,7 @@ runs:
         echo "✓ Project statistics gathered successfully"
 
     - name: Upload State on Failure (Project Stats)
-      if: ${{ failure() && steps.gather-project-stats.outcome == 'failure' }}
+      if: ${{ (failure() || cancelled()) && steps.gather-project-stats.outcome != 'success' && steps.gather-project-stats.outcome != 'skipped' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
       with:
         name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
