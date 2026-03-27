@@ -279,6 +279,7 @@ The action supports resuming from the last saved state when a stats collection r
 - If the GitHub Actions runner is terminated abruptly (infrastructure issue, spot instance preemption), the failure upload step may not execute — no state is saved in that case.
 - If the CLI fails before processing any repository, there is no state to resume from.
 - Resume applies to `repo-stats` and `project-stats` commands. The `app-install-stats` and `migration-audit` commands do not support resume.
+- The workflow must have `actions: read` permission for the `GITHUB_TOKEN` to download artifacts from previous runs. Add `permissions: actions: read` (see [examples/resume-stats.yml](examples/resume-stats.yml)).
 - Resume is not supported on GitHub Enterprise Server (GHES) because `actions/download-artifact@v4+` [does not support GHES](https://github.com/actions/download-artifact#ghes-support).
 - When a workflow is cancelled, state upload runs during GitHub Actions' cancellation grace period. If the output directory is very large, the upload may not complete in time.
 

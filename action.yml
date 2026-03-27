@@ -389,17 +389,17 @@ runs:
 
     - name: Restore State from Previous Attempt
       id: restore-state
-      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats') }}
+      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats') }}
       continue-on-error: true
       uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e #v4.2.2
       with:
-        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
         path: ${{ steps.setup-paths.outputs.output_dir }}/
         github-token: ${{ inputs.github-token }}
         run-id: ${{ steps.resolve-resume.outputs.source_run_id }}
 
     - name: Report Resume Status
-      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats') }}
+      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats') }}
       shell: bash
       env:
         RESTORE_OUTCOME: ${{ steps.restore-state.outcome }}
@@ -476,7 +476,7 @@ runs:
       if: ${{ (failure() || cancelled()) && steps.gather-repo-stats.outcome != 'success' && steps.gather-repo-stats.outcome != 'skipped' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
       with:
-        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
         path: ${{ steps.setup-paths.outputs.output_dir }}/
         retention-days: 3
         if-no-files-found: ignore
@@ -544,7 +544,7 @@ runs:
       if: ${{ (failure() || cancelled()) && steps.gather-project-stats.outcome != 'success' && steps.gather-project-stats.outcome != 'skipped' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
       with:
-        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
         path: ${{ steps.setup-paths.outputs.output_dir }}/
         retention-days: 3
         if-no-files-found: ignore
