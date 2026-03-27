@@ -73,6 +73,14 @@ inputs:
     description: "Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits"
     required: false
     default: ""
+  resume-from-last-save:
+    description: "Resume from the last saved state. Automatically enabled when re-running failed jobs (run_attempt > 1). Downloads state artifact from a previous attempt and passes --resume-from-last-save to the CLI."
+    required: false
+    default: "false"
+  resume-run-id:
+    description: "Workflow run ID to download state artifact from (for cross-run resume). When omitted, defaults to the current run ID (covers re-run of failed jobs)."
+    required: false
+    default: ""
 
 outputs:
   output-dir:
@@ -208,6 +216,7 @@ runs:
         else
           OUTPUT_DIR="${GITHUB_WORKSPACE}/${OUTPUT_DIR_INPUT}"
         fi
+        mkdir -p "$OUTPUT_DIR"
         echo "output_dir=${OUTPUT_DIR}" >> $GITHUB_OUTPUT
 
         REPOSITORY="${{ inputs.repository }}"
@@ -222,7 +231,7 @@ runs:
     - name: Create GitHub App token
       id: app-install
       if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
+      uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 #v3.0.0
       with:
         app-id: ${{ inputs.github-app-id }}
         private-key: ${{ inputs.github-app-private-key }}
@@ -350,13 +359,70 @@ runs:
 
         echo "✓ Dependencies installed successfully"
 
+    - name: Resolve Resume Mode
+      id: resolve-resume
+      shell: bash
+      env:
+        RESUME_INPUT: ${{ inputs.resume-from-last-save }}
+        RESUME_RUN_ID: ${{ inputs.resume-run-id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        CURRENT_RUN_ID: ${{ github.run_id }}
+      run: |
+        RESUME="false"
+        if [[ "${RESUME_INPUT}" == "true" ]]; then
+          echo "Resume explicitly enabled via input"
+          RESUME="true"
+        elif [[ "${RUN_ATTEMPT}" -gt 1 ]]; then
+          echo "Resume auto-enabled: run_attempt=${RUN_ATTEMPT} (re-run detected)"
+          RESUME="true"
+        fi
+        echo "resume=${RESUME}" >> $GITHUB_OUTPUT
+
+        # Determine which run to download state from
+        if [[ -n "${RESUME_RUN_ID}" ]]; then
+          echo "source_run_id=${RESUME_RUN_ID}" >> $GITHUB_OUTPUT
+          echo "Using explicit resume-run-id: ${RESUME_RUN_ID}"
+        else
+          echo "source_run_id=${CURRENT_RUN_ID}" >> $GITHUB_OUTPUT
+          echo "Using current run ID: ${CURRENT_RUN_ID}"
+        fi
+
+    - name: Restore State from Previous Attempt
+      id: restore-state
+      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats') }}
+      continue-on-error: true
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e #v4.2.2
+      with:
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        path: ${{ steps.setup-paths.outputs.output_dir }}/
+        github-token: ${{ inputs.github-token }}
+        run-id: ${{ steps.resolve-resume.outputs.source_run_id }}
+
+    - name: Report Resume Status
+      if: ${{ steps.resolve-resume.outputs.resume == 'true' && (inputs.type == 'repository' || inputs.type == 'organization' || inputs.type == 'project-stats') }}
+      shell: bash
+      env:
+        RESTORE_OUTCOME: ${{ steps.restore-state.outcome }}
+        OUTPUT_DIR: ${{ steps.setup-paths.outputs.output_dir }}
+      run: |
+        if [[ "${RESTORE_OUTCOME}" == "success" ]]; then
+          echo "✓ State restored from previous attempt"
+          echo "  State files found:"
+          ls -la "${OUTPUT_DIR}"/last_known_state*.json 2>/dev/null || echo "  (no state files)"
+          ls -la "${OUTPUT_DIR}"/*.csv 2>/dev/null || echo "  (no CSV files)"
+        else
+          echo "⚠️ No state artifact found from previous attempt — starting fresh"
+        fi
+
     - name: Gather Repo Stats
+      id: gather-repo-stats
       if: ${{ inputs.type == 'repository' || inputs.type == 'organization' }}
       shell: bash
       env:
         BATCH_SIZE: ${{ inputs.batch-size }}
         BATCH_INDEX: ${{ inputs.batch-index }}
         BATCH_DELAY: ${{ inputs.batch-delay }}
+        RESUME: ${{ steps.resolve-resume.outputs.resume }}
       run: |
         BATCH_ARGS=()
         if [[ -n "${BATCH_SIZE}" ]]; then
@@ -385,6 +451,11 @@ runs:
         elif [[ -n "${REPO_LIST_FILE}" ]] && [[ -n "${BATCH_SIZE}" ]]; then
           echo "::error::Batch mode (--batch-size) cannot be combined with a repository list (from the 'repository' input). Remove one of them."
           exit 1
+        fi
+
+        RESUME_ARGS=()
+        if [[ "${RESUME}" == "true" ]]; then
+          RESUME_ARGS+=(--resume-from-last-save)
         fi
 
         gh repo-stats-plus repo-stats \
@@ -396,17 +467,30 @@ runs:
           --base-url "${{ inputs.base-url }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
           "${REPO_LIST_ARGS[@]}" \
-          "${BATCH_ARGS[@]}"
+          "${BATCH_ARGS[@]}" \
+          "${RESUME_ARGS[@]}"
 
         echo "✓ Repository statistics gathered successfully"
 
+    - name: Upload State on Failure (Repo Stats)
+      if: ${{ (failure() || cancelled()) && steps.gather-repo-stats.outcome != 'success' && steps.gather-repo-stats.outcome != 'skipped' }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+      with:
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        path: ${{ steps.setup-paths.outputs.output_dir }}/
+        retention-days: 3
+        if-no-files-found: ignore
+        overwrite: true
+
     - name: Gather Project Stats
+      id: gather-project-stats
       if: ${{ inputs.type == 'project-stats' }}
       shell: bash
       env:
         BATCH_SIZE: ${{ inputs.batch-size }}
         BATCH_INDEX: ${{ inputs.batch-index }}
         BATCH_DELAY: ${{ inputs.batch-delay }}
+        RESUME: ${{ steps.resolve-resume.outputs.resume }}
       run: |
         BATCH_ARGS=()
         if [[ -n "${BATCH_SIZE}" ]]; then
@@ -437,6 +521,11 @@ runs:
           exit 1
         fi
 
+        RESUME_ARGS=()
+        if [[ "${RESUME}" == "true" ]]; then
+          RESUME_ARGS+=(--resume-from-last-save)
+        fi
+
         gh repo-stats-plus project-stats \
           --org-name "${{ inputs.organization }}" \
           --access-token "${{ inputs.access-token }}" \
@@ -446,9 +535,20 @@ runs:
           --base-url "${{ inputs.base-url }}" \
           --output-dir "${{ steps.setup-paths.outputs.output_dir }}" \
           "${REPO_LIST_ARGS[@]}" \
-          "${BATCH_ARGS[@]}"
+          "${BATCH_ARGS[@]}" \
+          "${RESUME_ARGS[@]}"
 
         echo "✓ Project statistics gathered successfully"
+
+    - name: Upload State on Failure (Project Stats)
+      if: ${{ (failure() || cancelled()) && steps.gather-project-stats.outcome != 'success' && steps.gather-project-stats.outcome != 'skipped' }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+      with:
+        name: repo-stats-state-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
+        path: ${{ steps.setup-paths.outputs.output_dir }}/
+        retention-days: 3
+        if-no-files-found: ignore
+        overwrite: true
 
     - name: Gather App Install Stats
       if: ${{ inputs.type == 'app-install-stats' }}
@@ -593,6 +693,7 @@ runs:
         name: repo-stats-${{ inputs.type }}-${{ inputs.organization }}${{ inputs.type == 'repository' && format('-{0}', inputs.repository) || '' }}${{ inputs.batch-index != '' && format('-batch-{0}', inputs.batch-index) || '' }}
         path: ${{ steps.setup-paths.outputs.output_dir }}/
         retention-days: ${{ inputs.retention-days }}
+        overwrite: true
 
     - name: Create Stats Placeholder
       if: ${{ success() && (inputs.type == 'organization' || inputs.type == 'project-stats' || inputs.type == 'app-install-stats' || inputs.type == 'migration-audit' || inputs.type == 'combine') }}
