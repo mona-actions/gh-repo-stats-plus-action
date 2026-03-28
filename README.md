@@ -376,7 +376,7 @@ See [rows-to-columns-stats.yml](examples/rows-to-columns-stats.yml) for a comple
 
 ### Combined Pipeline (Post-Process + Rows to Columns)
 
-Both post-process and rows-to-columns can be used together. When both are enabled, post-process runs first (to clean/transform values), then rows-to-columns adds the pivoted columns:
+Both post-process and rows-to-columns can be used together. When both are enabled, post-process runs first (to clean/transform values), then rows-to-columns automatically picks up the post-process output as its base CSV (the most recently written CSV in the output directory). If you need explicit control, set `rows-to-columns-base-csv-file` to point at the post-process output:
 
 ```yaml
 - name: Gather Stats with Full Pipeline

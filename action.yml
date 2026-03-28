@@ -769,7 +769,7 @@ runs:
             POST_PROCESS_ARGS+=(--input "${OUTPUT_DIR}/combined-stats.csv")
             echo "Auto-detected input: ${OUTPUT_DIR}/combined-stats.csv"
           else
-            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1)
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
             if [[ -n "${LATEST_CSV}" ]]; then
               POST_PROCESS_ARGS+=(--input "${LATEST_CSV}")
               echo "Auto-detected input: ${LATEST_CSV}"
@@ -819,6 +819,7 @@ runs:
         BASE_CSV_COLUMNS: ${{ inputs.rows-to-columns-base-csv-columns }}
         ADDITIONAL_CSV_COLUMNS: ${{ inputs.rows-to-columns-additional-csv-columns }}
         OUTPUT_FILE_NAME: ${{ inputs.rows-to-columns-output-file-name }}
+        RUN_POST_PROCESS: ${{ inputs.run-post-process }}
       run: |
         RTC_ARGS=()
 
@@ -826,12 +827,22 @@ runs:
         if [[ -n "${BASE_CSV_FILE}" ]]; then
           RTC_ARGS+=(--base-csv-file "${BASE_CSV_FILE}")
         else
-          # Auto-detect: prefer combined-stats.csv, then most recent CSV
-          if [[ -f "${OUTPUT_DIR}/combined-stats.csv" ]]; then
+          # When post-process ran before us, prefer the most recent CSV
+          # (which is the post-process output) over combined-stats.csv
+          if [[ "${RUN_POST_PROCESS}" == "true" ]]; then
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
+            if [[ -n "${LATEST_CSV}" ]]; then
+              RTC_ARGS+=(--base-csv-file "${LATEST_CSV}")
+              echo "Auto-detected base CSV (post-process output): ${LATEST_CSV}"
+            else
+              echo "::error::No CSV file found in output directory for rows-to-columns. Specify rows-to-columns-base-csv-file explicitly."
+              exit 1
+            fi
+          elif [[ -f "${OUTPUT_DIR}/combined-stats.csv" ]]; then
             RTC_ARGS+=(--base-csv-file "${OUTPUT_DIR}/combined-stats.csv")
             echo "Auto-detected base CSV: ${OUTPUT_DIR}/combined-stats.csv"
           else
-            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1)
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
             if [[ -n "${LATEST_CSV}" ]]; then
               RTC_ARGS+=(--base-csv-file "${LATEST_CSV}")
               echo "Auto-detected base CSV: ${LATEST_CSV}"
