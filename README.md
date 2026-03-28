@@ -20,27 +20,39 @@ In both cases, the `github-token` input (typically `${{ secrets.GITHUB_TOKEN }}`
 
 ## Inputs
 
-| Input                    | Description                                                                                                                                                             | Required | Default                  |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
-| `type`                   | Type of stats gathering: `repository`, `organization`, `project-stats`, `app-install-stats`, or `combine`                                                               | No       | `repository`             |
-| `github-token`           | GitHub token for authentication (e.g., `github.token`)                                                                                                                  | **Yes**  |                          |
-| `ghec-token`             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                                                                            | No       | `""`                     |
-| `access-token`           | Personal access token with repo access for gathering stats                                                                                                              | No       | `""`                     |
-| `github-app-id`          | GitHub App ID for authentication (requires `github-app-private-key`)                                                                                                    | No       | `""`                     |
-| `github-app-private-key` | GitHub App private key for authentication (requires `github-app-id`)                                                                                                    | No       | `""`                     |
-| `organization`           | Organization or owner name                                                                                                                                              | **Yes**  |                          |
-| `repository`             | Repository name (required if `type` is `repository`)                                                                                                                    | No       | `""`                     |
-| `output-dir`             | Directory where output files will be stored                                                                                                                             | No       | `output`                 |
-| `run-migration-audit`    | Whether to run migration audit (`true`/`false`)                                                                                                                         | No       | `false`                  |
-| `node-version`           | Node.js version to use                                                                                                                                                  | No       | `25`                     |
-| `base-url`               | GitHub API base URL                                                                                                                                                     | No       | `https://api.github.com` |
-| `skip-tls-verification`  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access)                                               | No       | `false`                  |
-| `retention-days`         | Number of days to retain uploaded artifacts                                                                                                                             | No       | `7`                      |
-| `batch-size`             | Number of repositories per batch (enables batch processing for large organizations). **Cannot be combined with `repository`** — batch mode generates its own repo list. | No       | `""`                     |
-| `batch-index`            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                                                                | No       | `""`                     |
-| `batch-delay`            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                                                                | No       | `""`                     |
-| `resume-from-last-save`  | Resume from the last saved state. Auto-enabled when re-running failed jobs (`run_attempt > 1`). See [Resume Failed Runs](#resume-failed-runs).                          | No       | `false`                  |
-| `resume-run-id`          | Workflow run ID to download state from (for cross-run resume). Defaults to the current run ID.                                                                          | No       | `""`                     |
+| Input                                    | Description                                                                                                                                                             | Required | Default                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
+| `type`                                   | Type of stats gathering: `repository`, `organization`, `project-stats`, `app-install-stats`, `migration-audit`, or `combine`                                            | No       | `repository`             |
+| `github-token`                           | GitHub token for authentication (e.g., `github.token`)                                                                                                                  | **Yes**  |                          |
+| `ghec-token`                             | GitHub Enterprise Cloud token (used to download dependencies from GHEC if not on github.com)                                                                            | No       | `""`                     |
+| `access-token`                           | Personal access token with repo access for gathering stats                                                                                                              | No       | `""`                     |
+| `github-app-id`                          | GitHub App ID for authentication (requires `github-app-private-key`)                                                                                                    | No       | `""`                     |
+| `github-app-private-key`                 | GitHub App private key for authentication (requires `github-app-id`)                                                                                                    | No       | `""`                     |
+| `organization`                           | Organization or owner name                                                                                                                                              | **Yes**  |                          |
+| `repository`                             | Repository name (required if `type` is `repository`)                                                                                                                    | No       | `""`                     |
+| `output-dir`                             | Directory where output files will be stored                                                                                                                             | No       | `output`                 |
+| `run-migration-audit`                    | Whether to run migration audit (`true`/`false`)                                                                                                                         | No       | `false`                  |
+| `node-version`                           | Node.js version to use                                                                                                                                                  | No       | `25`                     |
+| `base-url`                               | GitHub API base URL                                                                                                                                                     | No       | `https://api.github.com` |
+| `skip-tls-verification`                  | Skip TLS certificate verification for the target GitHub instance (use for GHES with self-signed certs or IP-based access)                                               | No       | `false`                  |
+| `retention-days`                         | Number of days to retain uploaded artifacts                                                                                                                             | No       | `7`                      |
+| `batch-size`                             | Number of repositories per batch (enables batch processing for large organizations). **Cannot be combined with `repository`** — batch mode generates its own repo list. | No       | `""`                     |
+| `batch-index`                            | Zero-based batch index (used with `batch-size` for parallel matrix jobs)                                                                                                | No       | `""`                     |
+| `batch-delay`                            | Delay in seconds multiplied by batch index to stagger API requests and avoid rate limits                                                                                | No       | `""`                     |
+| `resume-from-last-save`                  | Resume from the last saved state. Auto-enabled when re-running failed jobs (`run_attempt > 1`). See [Resume Failed Runs](#resume-failed-runs).                          | No       | `false`                  |
+| `resume-run-id`                          | Workflow run ID to download state from (for cross-run resume). Defaults to the current run ID.                                                                          | No       | `""`                     |
+| `run-post-process`                       | Whether to run post-process on output CSV to transform data using configurable rules (`true`/`false`). Requires `post-process-rules-file`.                              | No       | `false`                  |
+| `post-process-rules-file`                | Path to the JSON rules configuration file for post-process (required when `run-post-process` is `true`).                                                                | No       | `""`                     |
+| `post-process-input`                     | Path to the input CSV file for post-process. Auto-detects from output directory if not specified.                                                                       | No       | `""`                     |
+| `post-process-output-file-name`          | Name for the post-process output CSV file (default: auto-generated with timestamp).                                                                                     | No       | `""`                     |
+| `run-rows-to-columns`                    | Whether to run rows-to-columns to pivot additional CSV rows into new columns (`true`/`false`). Requires `rows-to-columns-additional-csv-file`.                          | No       | `false`                  |
+| `rows-to-columns-base-csv-file`          | Path to the base CSV file for rows-to-columns. Auto-detects from output directory if not specified.                                                                     | No       | `""`                     |
+| `rows-to-columns-additional-csv-file`    | Path to the additional CSV file for rows-to-columns (e.g., migration audit CSV). Required when `run-rows-to-columns` is `true`.                                         | No       | `""`                     |
+| `rows-to-columns-header-column-keys`     | Column in the additional CSV to use as new column headers.                                                                                                              | No       | `type`                   |
+| `rows-to-columns-header-column-values`   | Column in the additional CSV to use as cell values.                                                                                                                     | No       | `message`                |
+| `rows-to-columns-base-csv-columns`       | Comma-separated column names in the base CSV used for matching rows.                                                                                                    | No       | `Org_Name,Repo_Name`     |
+| `rows-to-columns-additional-csv-columns` | Comma-separated column names in the additional CSV used for matching rows.                                                                                              | No       | `owner,name`             |
+| `rows-to-columns-output-file-name`       | Name for the rows-to-columns output CSV file (default: auto-generated with timestamp).                                                                                  | No       | `""`                     |
 
 ## Outputs
 
@@ -321,6 +333,64 @@ Collect [GitHub App installation statistics](https://github.com/mona-actions/gh-
     organization: my-org
 ```
 
+### Post-Process
+
+Optionally run [post-process](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/post-process.md) after any stats gathering to transform CSV data using configurable rules for pattern matching, value replacement, and indicator column generation. This is useful for standardizing and cleaning output before reporting.
+
+Set `run-post-process: "true"` and provide a `post-process-rules-file` pointing to a JSON rules file. The input CSV is auto-detected from the output directory (preferring `combined-stats.csv`), or you can specify it explicitly with `post-process-input`.
+
+```yaml
+- name: Gather Organization Stats with Post-Process
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: organization
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+    run-post-process: "true"
+    post-process-rules-file: "post-process.rules.json"
+```
+
+See [post-process-stats.yml](examples/post-process-stats.yml) for a complete workflow and the [post-process docs](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/post-process.md) for rules file format.
+
+### Rows to Columns
+
+Optionally run [rows-to-columns](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/rows-to-columns.md) to pivot rows from an additional CSV (e.g., migration audit data) into new columns in the base stats CSV. This is typically used to combine repository statistics with [gh-migration-audit](https://github.com/timrogers/gh-migration-audit) results.
+
+Set `run-rows-to-columns: "true"` and provide `rows-to-columns-additional-csv-file`. The base CSV is auto-detected from the output directory, or you can specify it with `rows-to-columns-base-csv-file`. Column matching defaults are designed for the standard repo-stats + migration-audit combination.
+
+```yaml
+- name: Gather Organization Stats with Rows-to-Columns
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: organization
+    github-token: ${{ github.token }}
+    access-token: ${{ secrets.ACCESS_TOKEN }}
+    organization: my-org
+    run-migration-audit: "true"
+    run-rows-to-columns: "true"
+    rows-to-columns-additional-csv-file: "output/my-org-audit.csv"
+```
+
+See [rows-to-columns-stats.yml](examples/rows-to-columns-stats.yml) for a complete workflow and the [rows-to-columns docs](https://github.com/mona-actions/gh-repo-stats-plus/blob/main/docs/commands/rows-to-columns.md) for details.
+
+### Combined Pipeline (Post-Process + Rows to Columns)
+
+Both post-process and rows-to-columns can be used together. When both are enabled, post-process runs first (to clean/transform values), then rows-to-columns automatically picks up the post-process output as its base CSV (the most recently written CSV in the output directory). If you need explicit control, set `rows-to-columns-base-csv-file` to point at the post-process output:
+
+```yaml
+- name: Gather Stats with Full Pipeline
+  uses: mona-actions/gh-repo-stats-plus-action@v1
+  with:
+    type: combine
+    github-token: ${{ github.token }}
+    organization: my-org
+    run-post-process: "true"
+    post-process-rules-file: "post-process.rules.json"
+    run-rows-to-columns: "true"
+    rows-to-columns-additional-csv-file: "output/my-org-audit.csv"
+```
+
 ## Examples
 
 The [examples/](examples/) directory contains complete workflow files and setups you can use as a starting point:
@@ -331,6 +401,8 @@ The [examples/](examples/) directory contains complete workflow files and setups
 - [**Project Stats**](examples/project-stats.yml) — A simple workflow that gathers ProjectsV2 statistics for all repositories in an organization on a weekly schedule.
 - [**App Install Stats**](examples/app-install-stats.yml) — A simple workflow that gathers GitHub App installation statistics for an organization on a weekly schedule.
 - [**Resume Stats**](examples/resume-stats.yml) — A workflow demonstrating how to resume failed stats collection runs, with both automatic (re-run) and explicit (cross-run) resume patterns.
+- [**Post-Process Stats**](examples/post-process-stats.yml) — A workflow that gathers organization stats and runs post-process with a rules file to transform CSV data.
+- [**Rows to Columns Stats**](examples/rows-to-columns-stats.yml) — A workflow that gathers organization stats with migration audit and pivots audit rows into columns.
 - [**Issue Ops**](examples/issue-ops/) — A full [IssueOps](https://github.com/issue-ops) example that triggers stats gathering via `/run-stats` comments on GitHub Issues. Includes issue form templates for single-repository and organization-wide stats (with an operation dropdown to select repo stats, project stats, app installs, or migration audit), parses issue body and labels to determine the run type, posts results back as issue comments, and supports optional migration audits.
 
 ## CI
@@ -365,6 +437,8 @@ gh-repo-stats-plus-action/
 │   ├── project-stats.yml       # Project statistics example
 │   ├── app-install-stats.yml   # App installation stats example
 │   ├── resume-stats.yml        # Resume failed runs example
+│   ├── post-process-stats.yml  # Post-process stats example
+│   ├── rows-to-columns-stats.yml # Rows-to-columns stats example
 │   └── issue-ops/              # Full IssueOps example
 │       ├── gather-stats.yml
 │       ├── issue-templates/

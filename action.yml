@@ -81,6 +81,54 @@ inputs:
     description: "Workflow run ID to download state artifact from (for cross-run resume). When omitted, defaults to the current run ID (covers re-run of failed jobs)."
     required: false
     default: ""
+  run-post-process:
+    description: "Whether to run post-process on output CSV to transform data using configurable rules (true/false). Requires post-process-rules-file."
+    required: false
+    default: "false"
+  post-process-rules-file:
+    description: "Path to the JSON rules configuration file for post-process (required when run-post-process is true)"
+    required: false
+    default: ""
+  post-process-input:
+    description: "Path to the input CSV file for post-process. If not specified, auto-detects combined-stats.csv or the most recent CSV in the output directory."
+    required: false
+    default: ""
+  post-process-output-file-name:
+    description: "Name for the post-process output CSV file (default: auto-generated with timestamp)"
+    required: false
+    default: ""
+  run-rows-to-columns:
+    description: "Whether to run rows-to-columns to pivot additional CSV rows into new columns in the base CSV (true/false). Requires rows-to-columns-additional-csv-file."
+    required: false
+    default: "false"
+  rows-to-columns-base-csv-file:
+    description: "Path to the base CSV file for rows-to-columns. If not specified, auto-detects combined-stats.csv or the most recent CSV in the output directory."
+    required: false
+    default: ""
+  rows-to-columns-additional-csv-file:
+    description: "Path to the additional CSV file for rows-to-columns (e.g., migration audit CSV). Required when run-rows-to-columns is true."
+    required: false
+    default: ""
+  rows-to-columns-header-column-keys:
+    description: "Column in the additional CSV to use as new column headers"
+    required: false
+    default: "type"
+  rows-to-columns-header-column-values:
+    description: "Column in the additional CSV to use as cell values"
+    required: false
+    default: "message"
+  rows-to-columns-base-csv-columns:
+    description: "Comma-separated column names in the base CSV used for matching rows"
+    required: false
+    default: "Org_Name,Repo_Name"
+  rows-to-columns-additional-csv-columns:
+    description: "Comma-separated column names in the additional CSV used for matching rows"
+    required: false
+    default: "owner,name"
+  rows-to-columns-output-file-name:
+    description: "Name for the rows-to-columns output CSV file (default: auto-generated with timestamp)"
+    required: false
+    default: ""
 
 outputs:
   output-dir:
@@ -684,6 +732,141 @@ runs:
           --output-file-name combined-stats.csv
 
         echo "✓ Batch results combined successfully"
+
+    - name: Validate Post Process Inputs
+      if: ${{ inputs.run-post-process == 'true' }}
+      shell: bash
+      env:
+        RULES_FILE: ${{ inputs.post-process-rules-file }}
+      run: |
+        if [[ -z "${RULES_FILE}" ]]; then
+          echo "::error::post-process-rules-file is required when run-post-process is true"
+          exit 1
+        fi
+        if [[ ! -f "${RULES_FILE}" ]]; then
+          echo "::error::post-process-rules-file not found: ${RULES_FILE}"
+          exit 1
+        fi
+        echo "✓ Post process inputs validated"
+
+    - name: Run Post Process
+      if: ${{ inputs.run-post-process == 'true' }}
+      shell: bash
+      env:
+        OUTPUT_DIR: ${{ steps.setup-paths.outputs.output_dir }}
+        INPUT_FILE: ${{ inputs.post-process-input }}
+        RULES_FILE: ${{ inputs.post-process-rules-file }}
+        OUTPUT_FILE_NAME: ${{ inputs.post-process-output-file-name }}
+      run: |
+        POST_PROCESS_ARGS=()
+
+        # Determine input file
+        if [[ -n "${INPUT_FILE}" ]]; then
+          POST_PROCESS_ARGS+=(--input "${INPUT_FILE}")
+        else
+          # Auto-detect: prefer combined-stats.csv, then most recent CSV
+          if [[ -f "${OUTPUT_DIR}/combined-stats.csv" ]]; then
+            POST_PROCESS_ARGS+=(--input "${OUTPUT_DIR}/combined-stats.csv")
+            echo "Auto-detected input: ${OUTPUT_DIR}/combined-stats.csv"
+          else
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
+            if [[ -n "${LATEST_CSV}" ]]; then
+              POST_PROCESS_ARGS+=(--input "${LATEST_CSV}")
+              echo "Auto-detected input: ${LATEST_CSV}"
+            else
+              echo "::error::No CSV file found in output directory for post-process. Specify post-process-input explicitly."
+              exit 1
+            fi
+          fi
+        fi
+
+        POST_PROCESS_ARGS+=(--rules-file "${RULES_FILE}")
+        POST_PROCESS_ARGS+=(--output-dir "${OUTPUT_DIR}")
+
+        if [[ -n "${OUTPUT_FILE_NAME}" ]]; then
+          POST_PROCESS_ARGS+=(--output-file-name "${OUTPUT_FILE_NAME}")
+        fi
+
+        gh repo-stats-plus post-process "${POST_PROCESS_ARGS[@]}"
+
+        echo "✓ Post-process completed successfully"
+
+    - name: Validate Rows to Columns Inputs
+      if: ${{ inputs.run-rows-to-columns == 'true' }}
+      shell: bash
+      env:
+        ADDITIONAL_CSV: ${{ inputs.rows-to-columns-additional-csv-file }}
+      run: |
+        if [[ -z "${ADDITIONAL_CSV}" ]]; then
+          echo "::error::rows-to-columns-additional-csv-file is required when run-rows-to-columns is true"
+          exit 1
+        fi
+        if [[ ! -f "${ADDITIONAL_CSV}" ]]; then
+          echo "::error::rows-to-columns-additional-csv-file not found: ${ADDITIONAL_CSV}"
+          exit 1
+        fi
+        echo "✓ Rows to columns inputs validated"
+
+    - name: Run Rows to Columns
+      if: ${{ inputs.run-rows-to-columns == 'true' }}
+      shell: bash
+      env:
+        OUTPUT_DIR: ${{ steps.setup-paths.outputs.output_dir }}
+        BASE_CSV_FILE: ${{ inputs.rows-to-columns-base-csv-file }}
+        ADDITIONAL_CSV_FILE: ${{ inputs.rows-to-columns-additional-csv-file }}
+        HEADER_COLUMN_KEYS: ${{ inputs.rows-to-columns-header-column-keys }}
+        HEADER_COLUMN_VALUES: ${{ inputs.rows-to-columns-header-column-values }}
+        BASE_CSV_COLUMNS: ${{ inputs.rows-to-columns-base-csv-columns }}
+        ADDITIONAL_CSV_COLUMNS: ${{ inputs.rows-to-columns-additional-csv-columns }}
+        OUTPUT_FILE_NAME: ${{ inputs.rows-to-columns-output-file-name }}
+        RUN_POST_PROCESS: ${{ inputs.run-post-process }}
+      run: |
+        RTC_ARGS=()
+
+        # Determine base CSV file
+        if [[ -n "${BASE_CSV_FILE}" ]]; then
+          RTC_ARGS+=(--base-csv-file "${BASE_CSV_FILE}")
+        else
+          # When post-process ran before us, prefer the most recent CSV
+          # (which is the post-process output) over combined-stats.csv
+          if [[ "${RUN_POST_PROCESS}" == "true" ]]; then
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
+            if [[ -n "${LATEST_CSV}" ]]; then
+              RTC_ARGS+=(--base-csv-file "${LATEST_CSV}")
+              echo "Auto-detected base CSV (post-process output): ${LATEST_CSV}"
+            else
+              echo "::error::No CSV file found in output directory for rows-to-columns. Specify rows-to-columns-base-csv-file explicitly."
+              exit 1
+            fi
+          elif [[ -f "${OUTPUT_DIR}/combined-stats.csv" ]]; then
+            RTC_ARGS+=(--base-csv-file "${OUTPUT_DIR}/combined-stats.csv")
+            echo "Auto-detected base CSV: ${OUTPUT_DIR}/combined-stats.csv"
+          else
+            LATEST_CSV=$(ls -t "${OUTPUT_DIR}"/*.csv 2>/dev/null | head -n 1 || true)
+            if [[ -n "${LATEST_CSV}" ]]; then
+              RTC_ARGS+=(--base-csv-file "${LATEST_CSV}")
+              echo "Auto-detected base CSV: ${LATEST_CSV}"
+            else
+              echo "::error::No CSV file found in output directory for rows-to-columns. Specify rows-to-columns-base-csv-file explicitly."
+              exit 1
+            fi
+          fi
+        fi
+
+        RTC_ARGS+=(--additional-csv-file "${ADDITIONAL_CSV_FILE}")
+        RTC_ARGS+=(--header-column-keys "${HEADER_COLUMN_KEYS}")
+        RTC_ARGS+=(--header-column-values "${HEADER_COLUMN_VALUES}")
+        RTC_ARGS+=(--base-csv-columns "${BASE_CSV_COLUMNS}")
+        RTC_ARGS+=(--additional-csv-columns "${ADDITIONAL_CSV_COLUMNS}")
+        RTC_ARGS+=(--output-dir "${OUTPUT_DIR}")
+
+        if [[ -n "${OUTPUT_FILE_NAME}" ]]; then
+          RTC_ARGS+=(--output-file-name "${OUTPUT_FILE_NAME}")
+        fi
+
+        gh repo-stats-plus rows-to-columns "${RTC_ARGS[@]}"
+
+        echo "✓ Rows-to-columns completed successfully"
 
     - name: Upload Stats Artifact
       id: upload-artifact
